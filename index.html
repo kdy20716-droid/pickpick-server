@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>픽픽 (PICK PICK) - 결정 대행 서비스</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- Header -->
+    <header class="navbar">
+      <div class="nav-container">
+        <div class="logo">PICK PICK</div>
+        <nav class="nav-menu">
+          <a href="#" class="active">홈</a>
+          <a href="#">투표하기</a>
+          <a href="#">랭킹</a>
+          <a href="#">마이페이지</a>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero fade-in">
+      <h1>결정하기 힘들 땐? <span class="highlight">픽픽!</span></h1>
+      <p>
+        당신의 소소하지만 끝없는 고민들, 직관적인 투표로 완벽하게 결정해
+        드립니다.
+      </p>
+    </section>
+
+    <!-- Main Content (Feed) -->
+    <main class="feed-container">
+      <!-- Vote Card 1 -->
+      <article class="vote-card fade-in">
+        <h2 class="card-title">오늘 점심 메뉴, 승자는?</h2>
+        <div class="options-wrapper">
+          <div class="vs-badge">VS</div>
+
+          <!-- Option A -->
+          <div class="option-box" data-id="1" data-type="A">
+            <div class="img-container">
+              <img
+                src="https://images.unsplash.com/photo-1552611052-33e04de081de?auto=format&fit=crop&q=80&w=400"
+                alt="짬뽕"
+              />
+              <div class="hover-overlay">
+                <span class="pick-text">PICK</span>
+              </div>
+            </div>
+            <div class="option-name">짬뽕</div>
+          </div>
+
+          <!-- Option B -->
+          <div class="option-box" data-id="1" data-type="B">
+            <div class="img-container">
+              <img
+                src="https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&q=80&w=400"
+                alt="짜장면"
+              />
+              <div class="hover-overlay">
+                <span class="pick-text">PICK</span>
+              </div>
+            </div>
+            <div class="option-name">짜장면</div>
+          </div>
+        </div>
+
+        <!-- Progress Bar (Hidden by default) -->
+        <div class="progress-section hidden" id="progress-1">
+          <div class="progress-bar">
+            <div
+              class="progress-fill fill-a"
+              id="fill-1-a"
+              style="width: 0%"
+            ></div>
+            <div
+              class="progress-fill fill-b"
+              id="fill-1-b"
+              style="width: 0%"
+            ></div>
+          </div>
+          <div class="progress-labels">
+            <span class="label-a" id="label-1-a">0%</span>
+            <span class="label-b" id="label-1-b">0%</span>
+          </div>
+        </div>
+
+        <div class="card-footer">
+          <span class="meta-info">👥 2,451명 참여</span>
+          <span class="meta-info">💬 128개 댓글</span>
+        </div>
+      </article>
+
+      <!-- Vote Card 2 (For scroll demo) -->
+      <article class="vote-card fade-in" style="margin-top: 2rem">
+        <h2 class="card-title">출근길 이어폰 배터리 10%, 무엇을 들을까?</h2>
+        <div class="options-wrapper">
+          <div class="vs-badge">VS</div>
+
+          <div class="option-box" data-id="2" data-type="A">
+            <div class="img-container">
+              <img
+                src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=400"
+                alt="신나는 K-Pop"
+              />
+              <div class="hover-overlay">
+                <span class="pick-text">PICK</span>
+              </div>
+            </div>
+            <div class="option-name">신나는 K-Pop 3곡</div>
+          </div>
+
+          <div class="option-box" data-id="2" data-type="B">
+            <div class="img-container">
+              <img
+                src="https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&q=80&w=400"
+                alt="잔잔한 팟캐스트"
+              />
+              <div class="hover-overlay">
+                <span class="pick-text">PICK</span>
+              </div>
+            </div>
+            <div class="option-name">잔잔한 팟캐스트</div>
+          </div>
+        </div>
+
+        <div class="progress-section hidden" id="progress-2">
+          <div class="progress-bar">
+            <div
+              class="progress-fill fill-a"
+              id="fill-2-a"
+              style="width: 0%"
+            ></div>
+            <div
+              class="progress-fill fill-b"
+              id="fill-2-b"
+              style="width: 0%"
+            ></div>
+          </div>
+          <div class="progress-labels">
+            <span class="label-a" id="label-2-a">0%</span>
+            <span class="label-b" id="label-2-b">0%</span>
+          </div>
+        </div>
+
+        <div class="card-footer">
+          <span class="meta-info">👥 1,892명 참여</span>
+          <span class="meta-info">💬 85개 댓글</span>
+        </div>
+      </article>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
