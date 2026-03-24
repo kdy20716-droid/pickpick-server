@@ -1,4 +1,4 @@
-# soso-server
+# pickpick-server
 
 ## 프로젝트 소개
 
