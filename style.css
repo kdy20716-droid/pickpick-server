@@ -1,8 +1,8 @@
 /* 변수 설정: 파스텔 컬러, 배경, 그림자 */
 :root {
   --bg-color: #f9f9f9;
-  --pastel-blue: #a0c4ff;
-  --pastel-pink: #ffb3c6;
+  --pastel-blue: hsl(217, 100%, 81%);
+  --pastel-pink: rgb(252, 146, 217);
   --text-dark: #333333;
   --text-light: #777777;
   --white: #ffffff;
