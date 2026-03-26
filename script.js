@@ -31,8 +31,19 @@ document.addEventListener("DOMContentLoaded", () => {
         const percentA = Math.floor(Math.random() * 41) + 30; // 30 ~ 70 사이
         const percentB = 100 - percentA;
 
-        // 투표 후 Hover Effect (PICK 텍스트 및 어두운 레이어) 비활성화
+        // 부모 options-wrapper에 voted 클래스 추가
+        const wrapper = option.closest(".options-wrapper");
+        if (wrapper) {
+          wrapper.classList.add("voted");
+        }
+
+        // 투표 후 Hover Effect 비활성화 및 선택 여부에 따른 클래스 부여
         options.forEach((opt) => {
+          if (opt === option) {
+            opt.classList.add("selected");
+          } else {
+            opt.classList.add("unselected");
+          }
           opt.style.pointerEvents = "none";
           const overlay = opt.querySelector(".hover-overlay");
           if (overlay) overlay.style.display = "none";

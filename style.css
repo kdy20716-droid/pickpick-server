@@ -131,6 +131,15 @@ body {
   font-style: italic;
   color: #cbd5e1;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transition:
+    transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1),
+    opacity 0.5s ease;
+}
+
+/* 투표가 완료되면 가운데 VS 뱃지를 부드럽게 숨김 */
+.options-wrapper.voted .vs-badge {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0);
 }
 
 /* Options (A/B) */
@@ -138,6 +147,28 @@ body {
   flex: 1;
   text-align: center;
   cursor: pointer;
+  transition:
+    flex 0.6s cubic-bezier(0.25, 0.8, 0.25, 1),
+    transform 0.6s cubic-bezier(0.25, 0.8, 0.25, 1),
+    opacity 0.6s ease;
+}
+
+/* 선택된 이미지 (가운데로 차지하며 이동) */
+.option-box.selected {
+  flex: 2.5;
+  z-index: 2;
+}
+
+/* 선택된 이미지 내부의 사진은 hover 효과 등 다른 transform을 무시하고 원래 크기를 유지 */
+.option-box.selected .img-container img {
+  transform: scale(1);
+}
+
+/* 선택되지 않은 이미지 (밀려나서 작아지고 흐려짐) */
+.option-box.unselected {
+  flex: 0.5;
+  transform: scale(0.8);
+  opacity: 0.4;
 }
 .img-container {
   width: 100%;
