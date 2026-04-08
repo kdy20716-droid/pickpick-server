@@ -1,0 +1,178 @@
+body {
+  font-family: "Arial", sans-serif;
+  background: #f8f8f8;
+  margin: 0;
+}
+
+/* 헤더 */
+header {
+  display: flex;
+  justify-content: space-between;
+  padding: 20px 40px;
+  background: white;
+  border-bottom: 1px solid #eee;
+}
+
+.logo {
+  color: #ff8db5;
+  font-weight: bold;
+  font-size: 24px;
+}
+
+nav a {
+  margin: 0 10px;
+  text-decoration: none;
+  color: #333;
+}
+
+.user {
+  margin-left: 10px;
+}
+
+/* 컨테이너 */
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: calc(100vh - 80px);
+}
+
+/* 회원가입 박스 */
+.signup-box {
+  width: 500px; /* 이 수치를 조절하여 박스의 가로 크기를 변경할 수 있습니다. */
+  background: white;
+  padding: 30px;
+  border-radius: 15px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
+}
+
+.signup-box h2 {
+  text-align: center;
+  color: #ff8db5;
+}
+
+.verified {
+  font-size: 12px;
+  text-align: right;
+  color: #aaa;
+}
+
+/* 입력창 */
+.input-group {
+  display: flex;
+  align-items: center;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  padding: 10px;
+  margin-top: 10px;
+}
+
+.input-group span {
+  margin-right: 10px;
+}
+
+.input-group input {
+  border: none;
+  outline: none;
+  width: 100%;
+}
+
+/* 옵션 버튼 */
+.option-group {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.option-group div {
+  display: flex;
+  align-items: center;
+}
+
+.option-group button {
+  margin-left: 5px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 15px;
+  background: #eee;
+  cursor: pointer;
+}
+
+.option-group button.active {
+  background: #ff8db5;
+  color: white;
+}
+
+/* 체크박스 */
+.checkbox {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+/* 버튼 */
+.submit-btn {
+  width: 100%;
+  margin-top: 20px;
+  padding: 12px;
+  border: none;
+  border-radius: 25px;
+  background: #ff8db5;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.submit-btn:hover {
+  background: #ff6fa3;
+}
+
+.top-check {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 10px;
+}
+
+.custom-check {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  cursor: pointer;
+}
+
+/* 기본 체크박스 숨김 */
+.custom-check input {
+  display: none;
+}
+
+/* 박스 */
+.checkmark {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #ccc;
+  border-radius: 4px;
+  position: relative;
+}
+
+/* 체크 시 핑크 */
+.custom-check input:checked + .checkmark {
+  background-color: #ff8db5;
+  border-color: #ff8db5;
+}
+
+/* 체크 표시 */
+.custom-check input:checked + .checkmark::after {
+  content: "✔";
+  color: white;
+  font-size: 12px;
+  position: absolute;
+  top: -2px;
+  left: 2px;
+}
+
+/* 텍스트 */
+.custom-check .text {
+  margin-left: 8px;
+  font-size: 12px;
+}

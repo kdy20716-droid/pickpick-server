@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>PICKPICK 회원가입</title>
+    <link rel="stylesheet" href="/signin/signin.css" />
+  </head>
+  <body>
+    <header>
+      <div class="logo">PICKPICK</div>
+      <nav>
+        <a href="#">+ CREATE</a>
+        <a href="#">RANKING</a>
+        <a href="#">LOG IN</a>
+        <span class="user">👤</span>
+      </nav>
+    </header>
+
+    <div class="container">
+      <div class="signup-box">
+        <div class="checkbox top-check">
+          <label>
+            <input type="checkbox" id="realnameCheck" />
+            실명 인증된 아이디로 가입
+          </label>
+        </div>
+        <h2>회원 가입</h2>
+        <div class="input-group">
+          <span>👤</span>
+          <input
+            type="text"
+            placeholder="아이디"
+            minlength="5"
+            maxlength="15"
+            required
+          />
+        </div>
+
+        <div class="input-group">
+          <span>🔒</span>
+          <input
+            type="password"
+            placeholder="비밀번호"
+            minlength="8"
+            maxlength="20"
+            required
+          />
+        </div>
+
+        <div class="input-group">
+          <span>✉️</span>
+          <input type="email" placeholder="[선택] 이메일 주소" />
+        </div>
+
+        <div class="input-group">
+          <span>👤</span>
+          <input type="text" placeholder="이름" />
+        </div>
+
+        <div class="input-group">
+          <span>📅</span>
+          <input
+            type="text"
+            placeholder="생년월일 8자리"
+            pattern="[0-9]{8}"
+            maxlength="8"
+            required
+          />
+        </div>
+
+        <div class="option-group">
+          <div class="gender">
+            <span>👫</span>
+            <button onclick="selectBtn(this)">남자</button>
+            <button onclick="selectBtn(this)">여자</button>
+          </div>
+
+          <div class="nationality">
+            <span>🏳️</span>
+            <button onclick="selectBtn(this)">내국인</button>
+            <button onclick="selectBtn(this)">외국인</button>
+          </div>
+        </div>
+
+        <div class="checkbox">
+          <label>
+            <input type="checkbox" />
+            필수 개인정보 처리 방침 동의
+          </label>
+        </div>
+
+        <div class="checkbox">
+          <label>
+            <input type="checkbox" />
+            선택 마케팅 목적의 개인정보 수집 및 이용 동의
+          </label>
+        </div>
+
+        <button class="submit-btn">회원 가입</button>
+      </div>
+    </div>
+
+    <script src="/signin/signin.js"></script>
+  </body>
+</html>

@@ -38,8 +38,10 @@ document.addEventListener("DOMContentLoaded", () => {
           if (overlay) overlay.style.display = "none";
         });
 
-        // Progress Section 표시
-        progressSection.classList.remove("hidden");
+        // Progress Section 표시 (존재할 경우에만)
+        if (progressSection) {
+          progressSection.classList.remove("hidden");
+        }
 
         // CSS 애니메이션을 위해 약간의 지연(delay) 후 너비 할당
         setTimeout(() => {
@@ -48,12 +50,30 @@ document.addEventListener("DOMContentLoaded", () => {
           const labelA = card.querySelector(".label-a");
           const labelB = card.querySelector(".label-b");
 
-          fillA.style.width = percentA + "%";
-          fillB.style.width = percentB + "%";
+          if (fillA && fillB) {
+            fillA.style.width = percentA + "%";
+            fillB.style.width = percentB + "%";
+          }
 
-          // 숫자 카운팅 애니메이션 호출
-          animateValue(labelA, 0, percentA, 1200);
-          animateValue(labelB, 0, percentB, 1200);
+          if (labelA && labelB) {
+            // 숫자 카운팅 애니메이션 호출
+            animateValue(labelA, 0, percentA, 1200);
+            animateValue(labelB, 0, percentB, 1200);
+          }
+
+          // ★ 투표 결과 확인 후 다음 항목으로 자동 스크롤 (1.5초 뒤)
+          setTimeout(() => {
+            // 현재 카드의 부모 컨테이너(쇼츠면 .shorts-card, 메인이면 .vote-card) 찾기
+            const currentWrapper = card.closest(".shorts-card") || card;
+            const nextElement = currentWrapper.nextElementSibling;
+
+            if (nextElement) {
+              nextElement.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              });
+            }
+          }, 1500);
         }, 50);
       });
     });

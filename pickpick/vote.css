@@ -1,0 +1,274 @@
+/* 기본 초기화 */
+
+/* 헤더 전체 컨테이너 */
+.navbar {
+  width: 100%;
+  height: 70px; /* 높이 고정 */
+  background-color: #fff;
+  border-bottom: 2px solid #f0f0f0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: fixed; /* 화면 상단에 고정 */
+  top: 0;
+  left: 0;
+  z-index: 9999; /* 다른 요소보다 무조건 위에 */
+}
+
+.nav-container {
+  width: 90%;
+  max-width: 1200px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* 로고 스타일 */
+.logo {
+  color: #f06292;
+  font-size: 26px;
+  font-weight: 900;
+  text-decoration: none;
+  letter-spacing: -1px;
+}
+
+/* 우측 메뉴 링크 */
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+
+.nav-links a {
+  text-decoration: none;
+  color: #444;
+  font-size: 15px;
+  font-weight: 700;
+  transition: color 0.2s;
+}
+
+.nav-links a:hover {
+  color: #f06292;
+}
+
+/* 유저 아이콘 */
+.user-icon svg {
+  fill: #333;
+  cursor: pointer;
+  display: block;
+}
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Pretendard", sans-serif;
+}
+
+body {
+  background-color: #f1f3f5;
+  padding-top: 80px; /* 네비바 공간 */
+}
+
+/* 메인 레이아웃 (좌: 에디터 / 우: 설정) */
+.create-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  gap: 30px;
+  padding: 20px;
+  align-items: flex-start;
+}
+
+/* --- 왼쪽: 메인 에디터 섹션 --- */
+.editor-section {
+  flex: 2; /* 왼쪽이 더 넓게 */
+}
+
+.editor-card {
+  background-color: #fff;
+  border-radius: 20px;
+  padding: 40px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+}
+
+.title-input {
+  width: 80%;
+  border: none;
+  border-bottom: 2px solid #ddd;
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+  padding: 10px;
+  margin-bottom: 40px;
+  color: #bbb;
+  outline: none;
+}
+
+.matchup-editor {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  position: relative;
+  margin-bottom: 30px;
+}
+
+.upload-box {
+  flex: 1;
+  max-width: 350px;
+}
+
+.upload-placeholder {
+  width: 100%;
+  aspect-ratio: 1 / 1.1;
+  background-color: #c4c4c4; /* 시안의 회색 배경 */
+  border-radius: 15px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  margin-bottom: 15px;
+  transition: background-color 0.2s;
+}
+
+.upload-placeholder:hover {
+  background-color: #b0b0b0;
+}
+
+.candidate-name-input {
+  width: 100%;
+  border: none;
+  font-size: 24px;
+  font-weight: 600;
+  text-align: center;
+  color: #444;
+  outline: none;
+}
+
+.vs-badge {
+  font-size: 40px;
+  font-weight: 900;
+  font-style: italic;
+  color: #f06292;
+  background: white;
+  padding: 10px;
+  border-radius: 50%;
+  z-index: 5;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.add-candidate-btn {
+  background: none;
+  border: 2px solid #eee;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  cursor: pointer;
+  margin-top: 20px;
+  transition: all 0.2s;
+}
+
+.add-candidate-btn:hover {
+  background-color: #f8f8f8;
+  transform: scale(1.1);
+}
+
+/* --- 오른쪽: 사이드바 설정 섹션 --- */
+.settings-section {
+  flex: 1;
+  position: sticky;
+  top: 100px;
+}
+
+.settings-card {
+  background-color: #fff;
+  border-radius: 20px;
+  padding: 30px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+  position: relative;
+  min-height: 600px;
+}
+
+.setting-group {
+  margin-bottom: 40px;
+}
+
+.group-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.candidate-list {
+  list-style: none;
+}
+
+.candidate-list li {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 15px;
+  font-size: 14px;
+  color: #999;
+}
+
+.candidate-list input {
+  border: none;
+  border-bottom: 1px solid #ddd;
+  padding: 5px;
+  width: 100%;
+  outline: none;
+}
+
+/* 태그 클라우드 */
+.tag-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tag {
+  background-color: #fff;
+  border: 1px solid #ddd;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tag:hover {
+  background-color: #f0f0f0;
+}
+
+.tag.active {
+  background-color: #f06292;
+  color: #fff;
+  border-color: #f06292;
+}
+
+/* 업로드 FAB (Floating Action Button) */
+.submit-fab {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  width: 60px;
+  height: 60px;
+  background-color: #f06292;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  box-shadow: 0 5px 15px rgba(240, 98, 146, 0.4);
+  transition: transform 0.2s;
+}
+
+.submit-fab:hover {
+  transform: translateY(-5px);
+}
