@@ -1,0 +1,201 @@
+/* 기본 초기화 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family:
+    "Pretendard",
+    -apple-system,
+    BlinkMacSystemFont,
+    system-ui,
+    Roboto,
+    sans-serif;
+}
+
+body {
+  background-color: #f8f8f8;
+  color: #333;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* 상단 네비게이션 바 */
+.navbar {
+  width: 100%;
+  height: 60px;
+  background-color: #f8f8f8;
+  border-bottom: 2px solid #f9dfec;
+  display: flex;
+  justify-content: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.nav-container {
+  width: 90%;
+  max-width: 1200px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo {
+  color: #f06292; /* 픽픽 핑크 색상 */
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -1px;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 25px;
+}
+
+.nav-links a {
+  text-decoration: none;
+  color: #666;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.user-icon {
+  color: #333;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+/* 메인 컨텐츠 */
+.main-content {
+  width: 100%;
+  max-width: 800px;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.hero-section {
+  margin-bottom: 40px;
+}
+
+.hero-title {
+  font-size: 32px;
+  font-weight: 800;
+  margin-bottom: 15px;
+}
+
+.highlight {
+  color: #f06292;
+}
+
+.hero-subtitle {
+  font-size: 16px;
+  color: #666;
+  line-height: 1.5;
+}
+
+/* 투표 카드 섹션 */
+.vote-container {
+  position: relative;
+  background-color: #fff;
+  border-radius: 20px;
+  padding: 40px 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08); /* 부드러운 그림자 */
+  margin-bottom: 30px;
+}
+
+/* 1st 배지 */
+.badge-1st {
+  position: absolute;
+  top: 20px;
+  left: -15px;
+  background-color: #ffb300;
+  color: #fff;
+  padding: 5px 15px;
+  border-radius: 15px;
+  font-weight: 800;
+  font-size: 18px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.vote-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 30px;
+}
+
+.vote-matchup {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  position: relative;
+}
+
+.candidate-box {
+  flex: 1;
+  max-width: 320px;
+  background-color: rgba(0, 0, 0, 0.5); /* 검은색, 50% 투명도 */
+  transition: background-color 0.3s ease;
+  z-index: 1; /* 이미지보다는 위, 글자보다는 아래 */
+}
+
+.image-wrapper {
+  position: relative;
+  border-radius: 15px;
+  overflow: hidden;
+  aspect-ratio: 1 / 1.2;
+  background-color: #eee;
+}
+
+.image-wrapper img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.name-tag {
+  position: absolute;
+  bottom: 15px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(255, 255, 255, 0.85);
+  padding: 8px 25px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 18px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* VS 배지 */
+.vs-badge {
+  position: absolute;
+  z-index: 10;
+  background-color: #fff;
+  color: #f06292;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-weight: 900;
+  font-style: italic;
+  font-size: 20px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  border: 2px solid #f0f0f0;
+}
+
+/* 하단 링크 */
+.more-link a {
+  text-decoration: none;
+  color: #888;
+  font-size: 14px;
+  transition: color 0.2s;
+}
+
+.more-link a:hover {
+  color: #f06292;
+}

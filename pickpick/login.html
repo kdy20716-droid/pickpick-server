@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PICKPICK - 로그인</title>
+    <link rel="stylesheet" href="login.css" />
+  </head>
+  <body>
+    <div class="login-page">
+      <nav class="navbar">
+        <h1 class="logo">PICKPICK</h1>
+      </nav>
+
+      <main class="login-container">
+        <div class="login-box">
+          <h2 class="login-logo">PICKPICK</h2>
+
+          <form class="login-form">
+            <div class="input-group">
+              <input
+                type="text"
+                placeholder="PickPick 계정"
+                class="login-input"
+              />
+            </div>
+
+            <div class="input-group">
+              <input
+                type="password"
+                placeholder="비밀번호"
+                class="login-input"
+              />
+            </div>
+
+            <div class="options-group">
+              <label class="checkbox-container">
+                <input type="checkbox" />
+                <span class="checkmark"></span>
+                자동 로그인
+              </label>
+            </div>
+
+            <button type="submit" class="login-btn">Login</button>
+          </form>
+
+          <div class="forgot-password">
+            <a href="#">비밀번호를 잊으셨나요?</a>
+          </div>
+
+          <div class="social-login">
+            <button class="google-login-btn">
+              <img
+                src="google-icon.png"
+                alt="Google Logo"
+                class="google-icon"
+              />
+              Google Login
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>
