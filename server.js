@@ -98,3 +98,7 @@ app.get("/api/posts/feed", async (req, res) => {
     res.status(500).json({ success: false, message: "피드 로드 실패" });
   }
 });
+
+app.listen(5000, () => {
+  console.log("Server is running on http://localhost:5000");
+});
