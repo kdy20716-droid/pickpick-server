@@ -1,3 +1,8 @@
+-- 1. pickpick 이라는 빈 데이터베이스를 먼저 만듭니다.
+CREATE DATABASE pickpick;
+-- 2. 이제 pickpick 데이터베이스를 사용하겠다고 선언합니다.
+USE pickpick;
+
 -- 1. 카테고리 테이블 (임시로 두거나, 태그 용도로 사용)
 CREATE TABLE categories (
     id INT AUTO_INCREMENT PRIMARY KEY,     -- 카테고리 고유 번호

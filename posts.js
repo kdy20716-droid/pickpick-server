@@ -1,44 +1,67 @@
 const express = require("express");
 const router = express.Router();
-const pool = require("../db"); // 경로는 실제 위치에 맞게 수정
+const pool = require("./db"); // DB 연결 가져오기
 
-// 기존 /api/posts/feed 로직을 이곳으로 옮깁니다.
-// 경로는 /feed가 됩니다. (server.js에서 /api/posts로 연결해주기 때문)
-router.get("/feed", async (req, res) => {
-  const { userId } = req.query;
+// 1. 투표 게시글 목록 조회 API (일단 작동 확인용 메세지)
+router.get("/", (req, res) => {
+  res.send("게시글 API 라우터가 정상 작동 중입니다!");
+});
+
+// 2. 투표 게시글 생성 API (클라이언트의 Create.jsx 에서 데이터를 보낼 곳)
+router.post("/", async (req, res) => {
   try {
-    const [posts] = await pool.query(
-      `
-      SELECT 
-        p.*, 
-        u.nickname as author_name,
-        JSON_ARRAYAGG(
-          JSON_OBJECT(
-            'id', o.id,
-            'content', o.content,
-            'image_url', o.image_url,
-            'vote_count', o.vote_count
-          )
-        ) as options
-      FROM vote_posts p
-      JOIN users u ON p.author_id = u.id
-      JOIN vote_options o ON p.id = o.post_id
-      WHERE p.id NOT IN (SELECT post_id FROM vote_records WHERE user_id = ?)
-        AND p.id NOT IN (SELECT post_id FROM skip_records WHERE user_id = ?)
-      GROUP BY p.id
-      ORDER BY RAND()
-      LIMIT 5
-    `,
-      [userId, userId],
-    );
+    // 클라이언트가 보낸 데이터(body) 꺼내기
+    const { 
+      author_id, 
+      category, 
+      title, 
+      candidate_a_name, 
+      candidate_a_image, 
+      candidate_b_name, 
+      candidate_b_image 
+    } = req.body;
 
-    res.status(200).json(posts);
+    // 데이터가 다 있는지 간단히 검사 (이미지는 선택이라 뺌)
+    if (!author_id || !title || !candidate_a_name || !candidate_b_name) {
+      return res.status(400).json({ success: false, message: "필수 항목이 누락되었습니다." });
+    }
+
+    // DB에 데이터 넣기
+    const query = `
+      INSERT INTO vote_posts 
+      (author_id, category, title, candidate_a_name, candidate_a_image, candidate_b_name, candidate_b_image) 
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
+    const values = [author_id, category, title, candidate_a_name, candidate_a_image, candidate_b_name, candidate_b_image];
+    
+    const [result] = await pool.execute(query, values);
+
+    // 성공적으로 저장되면, 저장된 게시글의 번호(insertId)와 함께 성공 메세지 보내기
+    res.status(201).json({ 
+      success: true, 
+      message: "투표 게시글이 성공적으로 생성되었습니다!",
+      post_id: result.insertId 
+    });
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: "피드 로드 실패" });
+    console.error("게시글 생성 에러:", error);
+    res.status(500).json({ success: false, message: "서버 오류로 게시글 생성에 실패했습니다." });
   }
 });
 
-// 다른 posts 관련 라우트도 여기에 추가...
+// DB 테이블 확인용 임시 API (포스트맨/브라우저 확인용)
+router.get("/test-db", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SHOW TABLES");
+    res.json({
+      success: true,
+      message: "DB 연결 성공! 현재 생성된 테이블 목록입니다.",
+      tables: rows
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "DB 연결 실패 또는 테이블 조회 오류", error: error.message });
+  }
+});
 
 module.exports = router;
