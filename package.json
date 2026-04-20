@@ -1,0 +1,22 @@
+{
+  "name": "pickpick-server",
+  "version": "1.0.0",
+  "description": "🚀 PICKPICK Server\r 취향 대결 및 커뮤니티 투표 플랫폼 > 사용자가 직접 대결 콘텐츠를 생성하고, 실시간으로 투표 및 소통할 수 있는 서비스의 백엔드 시스템입니다.",
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "db.js",
+  "scripts": {
+    "dev": "nodemon src/app.js"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "dotenv": "^17.4.1",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mysql2": "^3.22.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}

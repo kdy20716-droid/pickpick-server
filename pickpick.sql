@@ -1,8 +1,16 @@
+-- 1. pickpick 이라는 빈 데이터베이스를 먼저 만듭니다.
+CREATE DATABASE pickpick;
+-- 2. 이제 pickpick 데이터베이스를 사용하겠다고 선언합니다.
+USE pickpick;
+
 -- 1. 카테고리 테이블 (임시로 두거나, 태그 용도로 사용)
 CREATE TABLE categories (
     id INT AUTO_INCREMENT PRIMARY KEY,     -- 카테고리 고유 번호
     name VARCHAR(50) NOT NULL UNIQUE       -- 카테고리 이름 (예: 영화 / 드라마, 연예 등)
 );
+
+-- 현재 가입된 유저 목록 보기
+SELECT * FROM users;
 
 -- 2. 유저 테이블
 CREATE TABLE users (
@@ -35,6 +43,9 @@ CREATE TABLE vote_posts (
     FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- 생성된 투표 게시글 목록 보기
+SELECT * FROM vote_posts;
+
 -- 4. 투표 기록 테이블 (중복 투표 방지용, 1인 1투표)
 CREATE TABLE vote_records (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,  -- 기록 고유 번호
@@ -47,6 +58,9 @@ CREATE TABLE vote_records (
     UNIQUE KEY unique_user_vote (post_id, user_id) -- ★ 1인 1투표 강제
 );
 
+-- 누가 어디에 투표했는지 기록 보기 (중복 투표 방지용)
+SELECT * FROM vote_records;
+
 -- 5. 댓글 테이블
 CREATE TABLE comments (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,  -- 댓글 고유 번호
@@ -58,6 +72,9 @@ CREATE TABLE comments (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- 작성된 댓글 목록 보기
+SELECT * FROM comments;
+
 -- 6. 좋아요 테이블
 CREATE TABLE likes (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,  -- 좋아요 고유 번호
@@ -68,3 +85,18 @@ CREATE TABLE likes (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE KEY unique_user_like (post_id, user_id) -- ★ 1인 1좋아요 강제
 );
+
+-- 누가 어떤 글에 좋아요를 눌렀는지 보기
+SELECT * FROM likes;
+
+-- (보너스) 투표글 목록을 작성자 닉네임과 함께 예쁘게 보기!
+SELECT
+         v.id AS '투표번호',
+         u.nickname AS '작성자',
+         v.title AS '제목',
+         v.candidate_a_name AS '후보A',
+         v.candidate_a_count AS 'A득표수',
+         v.candidate_b_name AS '후보B',
+         v.candidate_b_count AS 'B득표수'
+     FROM vote_posts v
+    JOIN users u ON v.author_id = u.id;
