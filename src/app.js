@@ -3,6 +3,8 @@ import express from "express"; // ES 문법 (자바스크립트 최신문법)
 
 // recipes 라우터 파일을 가져온다
 import usersRouter from "./routes/users.js";
+import postsRouter from "./routes/posts.js";
+import votesRouter from "./routes/votes.js";
 
 const app = express();
 
@@ -19,7 +21,10 @@ app.use((req, res, next) => {
 // JSON 형태로 들어오는 요청을 파싱해서 req.body에 추가
 app.use(express.json());
 
-app.use("/users", usersRouter);
+app.use("/api/users", usersRouter);
+// /api/posts로 시작하는 모든 요청은 postsRouter가 처리하도록 위임
+app.use("/api/posts", postsRouter);
+app.use("/api/votes", votesRouter);
 
 app.listen(4000, () => {
   console.log("4000번 포트번호로 서버 실행중");
