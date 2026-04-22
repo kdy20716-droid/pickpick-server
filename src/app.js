@@ -24,7 +24,7 @@ app.use(express.json());
 // uploads 폴더를 정적 폴더로 설정 (이미지 접근 가능하게 함)
 app.use("/uploads", express.static("uploads"));
 
-app.use("/api/users", usersRouter);
+app.use("/users", usersRouter);
 // /recipes로 시작하는 모든 요청은 postsRouter가 처리하도록 위임
 app.use("/recipes", postsRouter);
 app.use("/api/votes", votesRouter);
