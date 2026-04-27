@@ -1,102 +1,118 @@
 -- 1. pickpick 이라는 빈 데이터베이스를 먼저 만듭니다.
-CREATE DATABASE pickpick;
+CREATE DATABASE IF NOT EXISTS pickpick;
 -- 2. 이제 pickpick 데이터베이스를 사용하겠다고 선언합니다.
 USE pickpick;
 
--- 1. 카테고리 테이블 (임시로 두거나, 태그 용도로 사용)
-CREATE TABLE categories (
-    id INT AUTO_INCREMENT PRIMARY KEY,     -- 카테고리 고유 번호
-    name VARCHAR(50) NOT NULL UNIQUE       -- 카테고리 이름 (예: 영화 / 드라마, 연예 등)
-);
+-- 기존 테이블이 있다면 삭제 (초기화를 원할 경우 주석 해제)
+-- DROP TABLE IF EXISTS likes, comments, vote_records, vote_posts, users, categories;
 
--- 현재 가입된 유저 목록 보기
-SELECT * FROM users;
+-- 1. 카테고리 테이블
+CREATE TABLE IF NOT EXISTS categories (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE
+);
 
 -- 2. 유저 테이블
-CREATE TABLE users (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY, -- 유저 고유 번호 (자동 증가)
-    nickname VARCHAR(50) NOT NULL UNIQUE, -- 닉네임 (중복 불가)
-    password VARCHAR(255) NOT NULL,       -- 암호화된 비밀번호
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 가입 시간
+CREATE TABLE IF NOT EXISTS users (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    nickname VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 3. 투표 게시글 테이블 (선택지는 무조건 2개, 테이블 하나로 통합)
-CREATE TABLE vote_posts (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,  -- 게시글 고유 번호
-    author_id BIGINT NOT NULL,             -- 작성자 ID (users 테이블 참조)
-    category VARCHAR(50),                  -- 카테고리(태그) (예: '영화 / 드라마')
-    title VARCHAR(255) NOT NULL,           -- 투표 제목
-    
-    -- 왼쪽(1번) 후보군 정보
+-- 3. 투표 게시글 테이블
+CREATE TABLE IF NOT EXISTS vote_posts (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    author_id BIGINT NOT NULL,
+    category VARCHAR(50),
+    title VARCHAR(255) NOT NULL,
     candidate_a_name VARCHAR(255) NOT NULL,
     candidate_a_image VARCHAR(255),
-    candidate_a_count INT DEFAULT 0,       -- 왼쪽 후보군 득표수
-    
-    -- 오른쪽(2번) 후보군 정보
+    candidate_a_count INT DEFAULT 0,
     candidate_b_name VARCHAR(255) NOT NULL,
     candidate_b_image VARCHAR(255),
-    candidate_b_count INT DEFAULT 0,       -- 오른쪽 후보군 득표수
-
-    view_count INT DEFAULT 0,              -- 조회수
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- 작성 시간
-    
+    candidate_b_count INT DEFAULT 0,
+    view_count INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- 생성된 투표 게시글 목록 보기
-SELECT * FROM vote_posts;
-
--- 4. 투표 기록 테이블 (중복 투표 방지용, 1인 1투표)
-CREATE TABLE vote_records (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,  -- 기록 고유 번호
-    post_id BIGINT NOT NULL,               -- 투표한 게시글 ID
-    user_id BIGINT NOT NULL,               -- 투표한 유저 ID
-    selected_side ENUM('A', 'B') NOT NULL, -- 선택한 진영 ('A'는 왼쪽, 'B'는 오른쪽)
+-- 4. 투표 기록 테이블
+CREATE TABLE IF NOT EXISTS vote_records (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    post_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    selected_side ENUM('A', 'B') NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (post_id) REFERENCES vote_posts(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE KEY unique_user_vote (post_id, user_id) -- ★ 1인 1투표 강제
+    UNIQUE KEY unique_user_vote (post_id, user_id)
 );
 
--- 누가 어디에 투표했는지 기록 보기 (중복 투표 방지용)
-SELECT * FROM vote_records;
-
 -- 5. 댓글 테이블
-CREATE TABLE comments (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,  -- 댓글 고유 번호
-    post_id BIGINT NOT NULL,               -- 댓글 달린 게시글 ID
-    user_id BIGINT NOT NULL,               -- 작성자 ID
-    content TEXT NOT NULL,                 -- 댓글 내용
+CREATE TABLE IF NOT EXISTS comments (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    post_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    content TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (post_id) REFERENCES vote_posts(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- 작성된 댓글 목록 보기
-SELECT * FROM comments;
-
 -- 6. 좋아요 테이블
-CREATE TABLE likes (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,  -- 좋아요 고유 번호
-    user_id BIGINT NOT NULL,               -- 누른 유저 ID
-    post_id BIGINT NOT NULL,               -- 눌린 게시글 ID
+CREATE TABLE IF NOT EXISTS likes (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    post_id BIGINT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (post_id) REFERENCES vote_posts(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE KEY unique_user_like (post_id, user_id) -- ★ 1인 1좋아요 강제
+    UNIQUE KEY unique_user_like (post_id, user_id)
 );
 
--- 누가 어떤 글에 좋아요를 눌렀는지 보기
-SELECT * FROM likes;
+-- =====================================================================
+-- 💾 현재까지 저장된 데이터 백업 (INSERT 문)
+-- =====================================================================
 
--- (보너스) 투표글 목록을 작성자 닉네임과 함께 예쁘게 보기!
+INSERT IGNORE INTO users (id, nickname, password, created_at) VALUES 
+(1, 'kdy20716', '$2b$10$P/G3UYNlNrigthmju5vnCOMpoa6h5zLj1I5epQVE9.JtF1g8AB6ZG', '2026-04-27 10:32:07');
+
+INSERT IGNORE INTO vote_posts (id, author_id, category, title, candidate_a_name, candidate_a_image, candidate_a_count, candidate_b_name, candidate_b_image, candidate_b_count, view_count, created_at) VALUES 
+(1, 1, '영화 / 드라마', 'ㅇㅇㅇ', 'ㅇㅇ', NULL, 0, 'ㅇㅇ', NULL, 0, 0, '2026-04-27 10:44:06'),
+(2, 1, '영화 / 드라마', 'ㅇㅇ', 'ㅇㅇ', NULL, 0, 'ㅇㅇ', NULL, 0, 0, '2026-04-27 10:57:37');
+
+
+
+
+
+-- =====================================================================
+-- 👁️ 데이터 조회 쿼리 (아래 쿼리들을 드래그해서 실행해 보세요)
+-- =====================================================================
+
+-- 1) 가입된 전체 유저 보기
+SELECT * FROM users;
+
+-- 2) 생성된 투표 게시글 목록 보기
+SELECT * FROM vote_posts;
+
+-- 3) (보너스) 투표글 목록을 작성자 닉네임과 함께 예쁘게 보기!
 SELECT
-         v.id AS '투표번호',
-         u.nickname AS '작성자',
-         v.title AS '제목',
-         v.candidate_a_name AS '후보A',
-         v.candidate_a_count AS 'A득표수',
-         v.candidate_b_name AS '후보B',
-         v.candidate_b_count AS 'B득표수'
-     FROM vote_posts v
-    JOIN users u ON v.author_id = u.id;
+    v.id AS '투표번호',
+    u.nickname AS '작성자',
+    v.title AS '제목',
+    v.candidate_a_name AS '후보A',
+    v.candidate_a_count AS 'A득표수',
+    v.candidate_b_name AS '후보B',
+    v.candidate_b_count AS 'B득표수'
+FROM vote_posts v
+JOIN users u ON v.author_id = u.id;
+
+-- 4) 누가 어디에 투표했는지 기록 보기
+SELECT * FROM vote_records;
+
+-- 5) 작성된 댓글 목록 보기
+SELECT * FROM comments;
+
+-- 6) 누가 어떤 글에 좋아요를 눌렀는지 보기
+SELECT * FROM likes;
