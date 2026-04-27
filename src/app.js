@@ -10,11 +10,15 @@ const app = express();
 
 app.use((req, res, next) => {
   // CORS 허용
-  res.header("Access-Control-Allow-Origin", "http://localhost:5173");
+  res.header("Access-Control-Allow-Origin", "*");
   // GET(조회), POST(추가), PUT(수정), DELETE(삭제) 요청 허용
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   // JSON 데이터를 받을수있도록 허용
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
   next();
 });
 
