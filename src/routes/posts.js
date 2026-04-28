@@ -62,7 +62,7 @@ router.get("/", async (req, res) => {
 
     // 정렬 로직
     if (sort === "popular") {
-      query += " ORDER BY total_votes DESC, p.view_count DESC";
+      query += " ORDER BY total_votes DESC";
     } else if (sort === "comments") {
       query += " ORDER BY comment_count DESC, p.created_at DESC";
     } else if (sort === "name_asc") {
@@ -84,13 +84,13 @@ router.get("/", async (req, res) => {
   }
 });
 
-// 2. 랭킹 데이터 조회 API (인기순 정렬)
+// 2. 랭킹 데이터 조회 API (투표수 정렬)
 router.get("/ranking", async (req, res) => {
   try {
     const query = `
       SELECT p.*, (p.candidate_a_count + p.candidate_b_count) as total_votes
       FROM vote_posts p
-      ORDER BY total_votes DESC, p.view_count DESC
+      ORDER BY total_votes DESC
       LIMIT 10
     `;
     const [rows] = await pool.query(query);

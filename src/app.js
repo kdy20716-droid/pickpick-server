@@ -1,10 +1,11 @@
 // const express = require("express"); // 옛날 문법
 import express from "express"; // ES 문법 (자바스크립트 최신문법)
 
-// recipes 라우터 파일을 가져온다
+// 투표 목록 라우터 파일을 가져온다
 import usersRouter from "./routes/users.js";
-import postsRouter from "./routes/posts.js";
+import voteListRouter from "./routes/posts.js";
 import votesRouter from "./routes/votes.js";
+import mainRouter from "./routes/mainLogic.js"
 
 const app = express();
 
@@ -29,9 +30,10 @@ app.use(express.json());
 app.use("/uploads", express.static("uploads"));
 
 app.use("/users", usersRouter);
-// /recipes로 시작하는 모든 요청은 postsRouter가 처리하도록 위임
-app.use("/recipes", postsRouter);
+// /votelist로 시작하는 모든 요청은 voteListRouter가 처리하도록 위임
+app.use("/votelist", voteListRouter);
 app.use("/api/votes", votesRouter);
+app.use("/main", mainRouter)
 
 app.listen(4000, () => {
   console.log("4000번 포트번호로 서버 실행중");
