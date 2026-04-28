@@ -61,7 +61,9 @@ router.get("/", async (req, res) => {
     query += " GROUP BY p.id";
 
     // 정렬 로직
-    if (sort === "popular") {
+    if (sort === "random") {
+      query += " ORDER BY RAND()";
+    } else if (sort === "popular") {
       query += " ORDER BY total_votes DESC";
     } else if (sort === "comments") {
       query += " ORDER BY comment_count DESC, p.created_at DESC";
