@@ -2,6 +2,7 @@ import express from "express";
 import pool from "../db.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import nodemailer from "nodemailer";
 
 const router = express.Router();
 
@@ -83,6 +84,128 @@ router.post("/login", async (req, res) => {
   } catch (error) {
     console.error("로그인 에러:", error);
     res.status(500).json({ message: "서버 에러가 발생했습니다." });
+  }
+});
+
+// 임시 비밀번호(인증 코드) 발송 API : POST /users/send-temp-password
+router.post("/send-temp-password", async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: "이메일을 입력해주세요." });
+  }
+
+  // 6자리 랜덤 코드 생성
+  const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+  // 이메일 전송 설정
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: "[PICKPICK] 인증 코드 발송",
+    text: `요청하신 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 사용하여 비밀번호를 변경해주세요.`,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log("✅ 이메일 발송 성공! 구글 서버 응답:", info.response);
+    res.status(200).json({ message: "인증 코드가 발송되었습니다." });
+  } catch (error) {
+    console.error("❌ 이메일 발송 에러:", error);
+    res.status(500).json({ message: "이메일 발송에 실패했습니다." });
+  }
+});
+
+// 이메일 인증 코드 발송 API : POST /users/send-email-code
+router.post("/send-email-code", async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: "이메일을 입력해주세요." });
+  }
+
+  // 6자리 랜덤 코드 생성
+  const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+  // 이메일 전송 설정
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: "[PICKPICK] 이메일 인증 코드 발송",
+    text: `요청하신 이메일 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 회원가입 화면에 입력해주세요.`,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log("✅ 이메일 발송 성공! 구글 서버 응답:", info.response);
+    // 프론트엔드에서 코드를 비교할 수 있도록 생성된 코드를 응답으로 보내줍니다. (단순화된 방식)
+    res.status(200).json({ message: "인증 코드가 발송되었습니다.", code: tempCode });
+  } catch (error) {
+    console.error("❌ 이메일 발송 에러:", error);
+    res.status(500).json({ message: "이메일 발송에 실패했습니다." });
+  }
+});
+
+// 알림 조회 API : GET /users/:userId/notifications
+router.get("/:userId/notifications", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const [notifications] = await pool.query(
+      `SELECT n.*, u.name as sender_name, u.nickname as sender_nickname, c.content as comment_content
+       FROM notifications n
+       JOIN users u ON n.sender_id = u.id
+       LEFT JOIN comments c ON n.comment_id = c.id
+       WHERE n.user_id = ?
+       ORDER BY n.created_at DESC`,
+      [userId]
+    );
+    res.status(200).json({ success: true, notifications });
+  } catch (error) {
+    console.error("알림 조회 에러:", error);
+    res.status(500).json({ message: "알림을 불러오는 중 오류가 발생했습니다." });
+  }
+});
+
+// 알림 읽음 처리 API : PUT /users/:userId/notifications/:notifId/read
+router.put("/:userId/notifications/:notifId/read", async (req, res) => {
+  try {
+    const { userId, notifId } = req.params;
+    await pool.query(
+      "UPDATE notifications SET is_read = TRUE WHERE id = ? AND user_id = ?",
+      [notifId, userId]
+    );
+    res.status(200).json({ success: true, message: "알림을 읽음 처리했습니다." });
+  } catch (error) {
+    console.error("알림 읽음 처리 에러:", error);
+    res.status(500).json({ message: "오류가 발생했습니다." });
+  }
+});
+
+// 모든 알림 읽음 처리 API : PUT /users/:userId/notifications/read-all
+router.put("/:userId/notifications/read-all", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    await pool.query("UPDATE notifications SET is_read = TRUE WHERE user_id = ?", [userId]);
+    res.status(200).json({ success: true, message: "모든 알림을 읽음 처리했습니다." });
+  } catch (error) {
+    console.error("알림 전체 읽음 처리 에러:", error);
+    res.status(500).json({ message: "오류가 발생했습니다." });
   }
 });
 

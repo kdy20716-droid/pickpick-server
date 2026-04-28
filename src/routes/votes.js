@@ -111,7 +111,7 @@ router.get("/:postId/comments", async (req, res) => {
 // 특정 투표에 댓글 추가 API (POST /api/votes/:postId/comments)
 router.post("/:postId/comments", async (req, res) => {
   const { postId } = req.params;
-  const { user_id, content } = req.body;
+  const { user_id, content, parent_id } = req.body;
 
   if (!user_id || !content) {
     return res.status(400).json({ success: false, message: "user_id와 content가 필요합니다." });
@@ -119,17 +119,40 @@ router.post("/:postId/comments", async (req, res) => {
 
   try {
     const [result] = await pool.query(
-      "INSERT INTO comments (post_id, user_id, content) VALUES (?, ?, ?)",
-      [postId, user_id, content]
+      "INSERT INTO comments (post_id, user_id, content, parent_id) VALUES (?, ?, ?, ?)",
+      [postId, user_id, content, parent_id || null]
     );
     
+    const insertId = result.insertId;
+
+    // 알림 추가 로직
+    if (parent_id) {
+      // 대댓글인 경우: 부모 댓글 작성자에게 알림
+      const [parentComments] = await pool.query("SELECT user_id FROM comments WHERE id = ?", [parent_id]);
+      if (parentComments.length > 0 && parentComments[0].user_id !== user_id) {
+        await pool.query(
+          "INSERT INTO notifications (user_id, sender_id, type, post_id, comment_id) VALUES (?, ?, ?, ?, ?)",
+          [parentComments[0].user_id, user_id, "REPLY_ON_COMMENT", postId, insertId]
+        );
+      }
+    } else {
+      // 일반 댓글인 경우: 게시글 작성자에게 알림
+      const [posts] = await pool.query("SELECT author_id FROM vote_posts WHERE id = ?", [postId]);
+      if (posts.length > 0 && posts[0].author_id !== user_id) {
+        await pool.query(
+          "INSERT INTO notifications (user_id, sender_id, type, post_id, comment_id) VALUES (?, ?, ?, ?, ?)",
+          [posts[0].author_id, user_id, "COMMENT_ON_POST", postId, insertId]
+        );
+      }
+    }
+
     // 추가된 댓글 정보를 바로 반환 (작성자 이름 포함)
     const [newComment] = await pool.query(
       `SELECT c.*, u.name as author 
        FROM comments c 
        JOIN users u ON c.user_id = u.id 
        WHERE c.id = ?`,
-      [result.insertId]
+      [insertId]
     );
 
     res.status(201).json({ success: true, comment: newComment[0] });
