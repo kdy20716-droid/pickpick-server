@@ -54,10 +54,12 @@ CREATE TABLE IF NOT EXISTS comments (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     post_id BIGINT NOT NULL,
     user_id BIGINT NOT NULL,
+    parent_id BIGINT NULL,
     content TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (post_id) REFERENCES vote_posts(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE
 );
 
 -- 6. 좋아요 테이블
@@ -69,6 +71,21 @@ CREATE TABLE IF NOT EXISTS likes (
     FOREIGN KEY (post_id) REFERENCES vote_posts(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE KEY unique_user_like (post_id, user_id)
+);
+
+-- 7. 알림 테이블 (새로 추가됨)
+CREATE TABLE IF NOT EXISTS notifications (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    sender_id BIGINT NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    post_id BIGINT NOT NULL,
+    comment_id BIGINT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (post_id) REFERENCES vote_posts(id) ON DELETE CASCADE
 );
 
 -- =====================================================================
@@ -116,3 +133,27 @@ SELECT * FROM comments;
 
 -- 6) 누가 어떤 글에 좋아요를 눌렀는지 보기
 SELECT * FROM likes;
+
+-- 7) 알림(Notification) 전체 보기 (기본)
+SELECT * FROM notifications;
+
+-- 8) (보너스) 사람별로 받은 알림을 예쁘게 정리해서 보기!
+SELECT 
+    n.id AS '알림번호',
+    receiver.nickname AS '받는사람',
+    sender.nickname AS '보낸사람',
+    CASE 
+        WHEN n.type = 'COMMENT_ON_POST' THEN '내 투표에 댓글을 달았습니다'
+        WHEN n.type = 'REPLY_ON_COMMENT' THEN '내 댓글에 대댓글을 달았습니다'
+        ELSE n.type 
+    END AS '알림내용',
+    vp.title AS '관련 투표글',
+    c.content AS '작성된 댓글',
+    IF(n.is_read = 1, '읽음', '안읽음') AS '읽음여부',
+    n.created_at AS '발생시간'
+FROM notifications n
+JOIN users receiver ON n.user_id = receiver.id
+JOIN users sender ON n.sender_id = sender.id
+JOIN vote_posts vp ON n.post_id = vp.id
+LEFT JOIN comments c ON n.comment_id = c.id
+ORDER BY n.created_at DESC;

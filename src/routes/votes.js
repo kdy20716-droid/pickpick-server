@@ -126,22 +126,35 @@ router.post("/:postId/comments", async (req, res) => {
     const insertId = result.insertId;
 
     // 알림 추가 로직
+    const [posts] = await pool.query("SELECT author_id FROM vote_posts WHERE id = ?", [postId]);
+    const postAuthorId = posts.length > 0 ? posts[0].author_id : null;
+
     if (parent_id) {
       // 대댓글인 경우: 부모 댓글 작성자에게 알림
       const [parentComments] = await pool.query("SELECT user_id FROM comments WHERE id = ?", [parent_id]);
-      if (parentComments.length > 0 && parentComments[0].user_id !== user_id) {
+      const parentAuthorId = parentComments.length > 0 ? parentComments[0].user_id : null;
+
+      // 1. 부모 댓글 작성자에게 알림 (본인이 답글 단게 아닐 때)
+      if (parentAuthorId && parentAuthorId !== user_id) {
         await pool.query(
           "INSERT INTO notifications (user_id, sender_id, type, post_id, comment_id) VALUES (?, ?, ?, ?, ?)",
-          [parentComments[0].user_id, user_id, "REPLY_ON_COMMENT", postId, insertId]
+          [parentAuthorId, user_id, "REPLY_ON_COMMENT", postId, insertId]
+        );
+      }
+
+      // 2. 게시글 작성자에게도 알림 (게시글 작성자가 본인이 아니고, 게시글 작성자가 부모 댓글 작성자가 아닐 때 -> 중복 방지)
+      if (postAuthorId && postAuthorId !== user_id && postAuthorId !== parentAuthorId) {
+        await pool.query(
+          "INSERT INTO notifications (user_id, sender_id, type, post_id, comment_id) VALUES (?, ?, ?, ?, ?)",
+          [postAuthorId, user_id, "COMMENT_ON_POST", postId, insertId]
         );
       }
     } else {
       // 일반 댓글인 경우: 게시글 작성자에게 알림
-      const [posts] = await pool.query("SELECT author_id FROM vote_posts WHERE id = ?", [postId]);
-      if (posts.length > 0 && posts[0].author_id !== user_id) {
+      if (postAuthorId && postAuthorId !== user_id) {
         await pool.query(
           "INSERT INTO notifications (user_id, sender_id, type, post_id, comment_id) VALUES (?, ?, ?, ?, ?)",
-          [posts[0].author_id, user_id, "COMMENT_ON_POST", postId, insertId]
+          [postAuthorId, user_id, "COMMENT_ON_POST", postId, insertId]
         );
       }
     }
