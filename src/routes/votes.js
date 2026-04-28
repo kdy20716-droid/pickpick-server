@@ -55,4 +55,142 @@ router.post("/:postId", async (req, res) => {
   }
 });
 
+// 좋아요 토글 API (POST /api/votes/:postId/like)
+router.post("/:postId/like", async (req, res) => {
+  const { postId } = req.params;
+  const { user_id } = req.body;
+
+  if (!user_id) {
+    return res.status(400).json({ success: false, message: "user_id가 필요합니다." });
+  }
+
+  try {
+    // 이미 좋아요를 눌렀는지 확인
+    const [existingLike] = await pool.query(
+      "SELECT * FROM likes WHERE post_id = ? AND user_id = ?",
+      [postId, user_id]
+    );
+
+    if (existingLike.length > 0) {
+      // 이미 좋아요를 눌렀으면 취소 (삭제)
+      await pool.query("DELETE FROM likes WHERE post_id = ? AND user_id = ?", [postId, user_id]);
+      return res.status(200).json({ success: true, liked: false, message: "좋아요 취소" });
+    } else {
+      // 좋아요 추가
+      await pool.query("INSERT INTO likes (post_id, user_id) VALUES (?, ?)", [postId, user_id]);
+      return res.status(200).json({ success: true, liked: true, message: "좋아요 추가" });
+    }
+  } catch (error) {
+    console.error("좋아요 처리 에러:", error);
+    res.status(500).json({ success: false, message: "서버 에러 발생" });
+  }
+});
+
+// 특정 투표의 댓글 조회 API (GET /api/votes/:postId/comments)
+router.get("/:postId/comments", async (req, res) => {
+  const { postId } = req.params;
+  
+  try {
+    const [comments] = await pool.query(
+      `SELECT c.*, u.name as author, COUNT(cl.id) as likes
+       FROM comments c 
+       JOIN users u ON c.user_id = u.id 
+       LEFT JOIN comment_likes cl ON c.id = cl.comment_id
+       WHERE c.post_id = ? 
+       GROUP BY c.id
+       ORDER BY c.created_at DESC`,
+      [postId]
+    );
+    res.status(200).json({ success: true, comments });
+  } catch (error) {
+    console.error("댓글 조회 에러:", error);
+    res.status(500).json({ success: false, message: "서버 에러 발생" });
+  }
+});
+
+// 특정 투표에 댓글 추가 API (POST /api/votes/:postId/comments)
+router.post("/:postId/comments", async (req, res) => {
+  const { postId } = req.params;
+  const { user_id, content } = req.body;
+
+  if (!user_id || !content) {
+    return res.status(400).json({ success: false, message: "user_id와 content가 필요합니다." });
+  }
+
+  try {
+    const [result] = await pool.query(
+      "INSERT INTO comments (post_id, user_id, content) VALUES (?, ?, ?)",
+      [postId, user_id, content]
+    );
+    
+    // 추가된 댓글 정보를 바로 반환 (작성자 이름 포함)
+    const [newComment] = await pool.query(
+      `SELECT c.*, u.name as author 
+       FROM comments c 
+       JOIN users u ON c.user_id = u.id 
+       WHERE c.id = ?`,
+      [result.insertId]
+    );
+
+    res.status(201).json({ success: true, comment: newComment[0] });
+  } catch (error) {
+    console.error("댓글 추가 에러:", error);
+    res.status(500).json({ success: false, message: "서버 에러 발생" });
+  }
+});
+
+// 특정 투표의 댓글 삭제 API (DELETE /api/votes/:postId/comments/:commentId)
+router.delete("/:postId/comments/:commentId", async (req, res) => {
+  const { commentId } = req.params;
+  const { user_id } = req.body;
+
+  if (!user_id) {
+    return res.status(400).json({ success: false, message: "user_id가 필요합니다." });
+  }
+
+  try {
+    const [result] = await pool.query(
+      "DELETE FROM comments WHERE id = ? AND user_id = ?",
+      [commentId, user_id]
+    );
+
+    if (result.affectedRows > 0) {
+      res.status(200).json({ success: true, message: "댓글이 삭제되었습니다." });
+    } else {
+      res.status(403).json({ success: false, message: "권한이 없거나 댓글이 존재하지 않습니다." });
+    }
+  } catch (error) {
+    console.error("댓글 삭제 에러:", error);
+    res.status(500).json({ success: false, message: "서버 에러 발생" });
+  }
+});
+
+// 댓글 좋아요 토글 API (POST /api/votes/:postId/comments/:commentId/like)
+router.post("/:postId/comments/:commentId/like", async (req, res) => {
+  const { commentId } = req.params;
+  const { user_id } = req.body;
+
+  if (!user_id) {
+    return res.status(400).json({ success: false, message: "user_id가 필요합니다." });
+  }
+
+  try {
+    const [existingLike] = await pool.query(
+      "SELECT * FROM comment_likes WHERE comment_id = ? AND user_id = ?",
+      [commentId, user_id]
+    );
+
+    if (existingLike.length > 0) {
+      await pool.query("DELETE FROM comment_likes WHERE comment_id = ? AND user_id = ?", [commentId, user_id]);
+      return res.status(200).json({ success: true, liked: false, message: "댓글 좋아요 취소" });
+    } else {
+      await pool.query("INSERT INTO comment_likes (comment_id, user_id) VALUES (?, ?)", [commentId, user_id]);
+      return res.status(200).json({ success: true, liked: true, message: "댓글 좋아요 추가" });
+    }
+  } catch (error) {
+    console.error("댓글 좋아요 처리 에러:", error);
+    res.status(500).json({ success: false, message: "서버 에러 발생" });
+  }
+});
+
 export default router;

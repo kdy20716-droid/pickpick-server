@@ -25,19 +25,53 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-// 1. 투표 게시글 목록 조회 API
+// 1. 투표 게시글 목록 조회 API (검색, 카테고리, 정렬 포함)
 router.get("/", async (req, res) => {
   try {
-    const { keyword } = req.query;
-    let query = "SELECT * FROM vote_posts";
+    const { keyword, category, sort } = req.query;
+    
+    // 기본 쿼리: 좋아요 개수와 댓글 개수를 함께 가져옴
+    let query = `
+      SELECT p.*, 
+             COUNT(DISTINCT l.id) as like_count,
+             COUNT(DISTINCT c.id) as comment_count,
+             (p.candidate_a_count + p.candidate_b_count) as total_votes
+      FROM vote_posts p
+      LEFT JOIN likes l ON p.id = l.post_id
+      LEFT JOIN comments c ON p.id = c.post_id
+    `;
+    
     let params = [];
+    let conditions = [];
 
     if (keyword) {
-      query += " WHERE title LIKE ? OR category LIKE ?";
-      params = [`%${keyword}%`, `%${keyword}%`];
+      conditions.push("(p.title LIKE ? OR p.category LIKE ?)");
+      params.push(`%${keyword}%`, `%${keyword}%`);
     }
 
-    query += " ORDER BY created_at DESC";
+    if (category && category !== "전체") {
+      conditions.push("p.category = ?");
+      params.push(category);
+    }
+
+    if (conditions.length > 0) {
+      query += " WHERE " + conditions.join(" AND ");
+    }
+
+    query += " GROUP BY p.id";
+
+    // 정렬 로직
+    if (sort === "popular") {
+      query += " ORDER BY total_votes DESC, p.view_count DESC";
+    } else if (sort === "comments") {
+      query += " ORDER BY comment_count DESC, p.created_at DESC";
+    } else if (sort === "name_asc") {
+      query += " ORDER BY p.title ASC";
+    } else if (sort === "name_desc") {
+      query += " ORDER BY p.title DESC";
+    } else {
+      query += " ORDER BY p.created_at DESC"; // 최신순 (기본값)
+    }
 
     const [rows] = await pool.query(query, params);
     res.json(rows);
@@ -50,7 +84,35 @@ router.get("/", async (req, res) => {
   }
 });
 
-// 2. 투표 게시글 생성 API (이미지 업로드 포함)
+// 2. 랭킹 데이터 조회 API (인기순 정렬)
+router.get("/ranking", async (req, res) => {
+  try {
+    const query = `
+      SELECT p.*, (p.candidate_a_count + p.candidate_b_count) as total_votes
+      FROM vote_posts p
+      ORDER BY total_votes DESC, p.view_count DESC
+      LIMIT 10
+    `;
+    const [rows] = await pool.query(query);
+    res.json(rows);
+  } catch (error) {
+    console.error("랭킹 조회 에러:", error);
+    res.status(500).json({ success: false, message: "서버 오류로 랭킹 조회에 실패했습니다." });
+  }
+});
+
+// 3. 조회수 증가 API
+router.post("/:postId/view", async (req, res) => {
+  const { postId } = req.params;
+  try {
+    await pool.query("UPDATE vote_posts SET view_count = view_count + 1 WHERE id = ?", [postId]);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false });
+  }
+});
+
+// 4. 투표 게시글 생성 API (이미지 업로드 포함)
 router.post(
   "/",
   upload.fields([

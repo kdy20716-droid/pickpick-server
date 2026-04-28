@@ -6,15 +6,12 @@ import jwt from "jsonwebtoken";
 const router = express.Router();
 
 // 회원가입 API : POST /users/signin
-// 클라이언트의 signin API(instance.post("/users/signin", form))와 연결됩니다.
 router.post("/signin", async (req, res) => {
   try {
-    // 클라이언트 Signin.jsx의 form 데이터: { id, pw, email, name, birth }
-    // DB의 users 테이블 스키마에 맞춰 id를 nickname으로, pw를 password로 사용합니다.
-    const { id, pw } = req.body;
+    const { id, pw, name } = req.body;
 
-    if (!id || !pw) {
-      return res.status(400).json({ message: "아이디와 비밀번호는 필수 입력 항목입니다." });
+    if (!id || !pw || !name) {
+      return res.status(400).json({ message: "아이디, 비밀번호, 이름은 필수 입력 항목입니다." });
     }
 
     // 1. 아이디(nickname) 중복체크
@@ -27,10 +24,10 @@ router.post("/signin", async (req, res) => {
     // 2. 비밀번호 암호화
     const hashedPassword = await bcrypt.hash(pw, 10);
 
-    // 3. DB에 저장
+    // 3. DB에 저장 (name 컬럼 포함)
     await pool.query(
-      "INSERT INTO users (nickname, password) VALUES (?, ?)",
-      [id, hashedPassword]
+      "INSERT INTO users (nickname, password, name) VALUES (?, ?, ?)",
+      [id, hashedPassword, name]
     );
 
     res.status(201).json({ message: "회원가입이 완료되었습니다." });
