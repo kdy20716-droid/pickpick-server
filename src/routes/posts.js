@@ -28,7 +28,7 @@ const upload = multer({ storage: storage });
 // 1. 투표 게시글 목록 조회 API (검색, 카테고리, 정렬 포함)
 router.get("/", async (req, res) => {
   try {
-    const { keyword, category, sort } = req.query;
+    const { keyword, category, sort, user_id } = req.query;
     
     // 기본 쿼리: 좋아요 개수와 댓글 개수를 함께 가져옴
     let query = `
@@ -36,12 +36,23 @@ router.get("/", async (req, res) => {
              COUNT(DISTINCT l.id) as like_count,
              COUNT(DISTINCT c.id) as comment_count,
              (p.candidate_a_count + p.candidate_b_count) as total_votes
+    `;
+    
+    if (user_id) {
+      query += `, (SELECT selected_side FROM vote_records WHERE post_id = p.id AND user_id = ?) AS user_voted_side`;
+    }
+
+    query += `
       FROM vote_posts p
       LEFT JOIN likes l ON p.id = l.post_id
       LEFT JOIN comments c ON p.id = c.post_id
     `;
     
     let params = [];
+    if (user_id) {
+      params.push(user_id);
+    }
+    
     let conditions = [];
 
     if (keyword) {
@@ -61,17 +72,24 @@ router.get("/", async (req, res) => {
     query += " GROUP BY p.id";
 
     // 정렬 로직
-    if (sort === "popular") {
-      query += " ORDER BY total_votes DESC, p.view_count DESC";
-    } else if (sort === "comments") {
-      query += " ORDER BY comment_count DESC, p.created_at DESC";
-    } else if (sort === "name_asc") {
-      query += " ORDER BY p.title ASC";
-    } else if (sort === "name_desc") {
-      query += " ORDER BY p.title DESC";
-    } else {
-      query += " ORDER BY p.created_at DESC"; // 최신순 (기본값)
+    let orderClauses = [];
+    if (user_id) {
+      orderClauses.push("user_voted_side IS NOT NULL"); // 투표 안 한 것(NULL)이 먼저 오도록 정렬 (0, 1)
     }
+
+    if (sort === "popular") {
+      orderClauses.push("total_votes DESC", "p.view_count DESC");
+    } else if (sort === "comments") {
+      orderClauses.push("comment_count DESC", "p.created_at DESC");
+    } else if (sort === "name_asc") {
+      orderClauses.push("p.title ASC");
+    } else if (sort === "name_desc") {
+      orderClauses.push("p.title DESC");
+    } else {
+      orderClauses.push("p.created_at DESC"); // 최신순 (기본값)
+    }
+
+    query += " ORDER BY " + orderClauses.join(", ");
 
     const [rows] = await pool.query(query, params);
     res.json(rows);
