@@ -25,7 +25,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-// 1. 투표 게시글 목록 조회 API (검색, 카테고리, 정렬 포함)
+// 1. 투표 게시글 목록 조회 API (검색, 카테고리, 정렬 포함) http://localhost:4000/votelist
 router.get("/", async (req, res) => {
   try {
     const { keyword, category, sort, user_id } = req.query;
