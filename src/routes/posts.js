@@ -115,12 +115,10 @@ router.get("/ranking", async (req, res) => {
     res.json(rows);
   } catch (error) {
     console.error("랭킹 조회 에러:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "서버 오류로 랭킹 조회에 실패했습니다.",
-      });
+    res.status(500).json({
+      success: false,
+      message: "서버 오류로 랭킹 조회에 실패했습니다.",
+    });
   }
 });
 
