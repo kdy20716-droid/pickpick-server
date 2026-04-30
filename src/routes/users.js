@@ -87,6 +87,14 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// 로그아웃 API : POST /users/logout
+router.post("/logout", (req, res) => {
+  // JWT 기반 인증이므로 서버측에서 토큰을 무효화하는 로직(예: Redis 블랙리스트)을
+  // 추가할 수 있으나, 현재 구조상 클라이언트에서 토큰을 삭제하는 것으로 로그아웃을 처리합니다.
+  // 서버는 단순히 성공 응답을 내려줍니다.
+  res.status(200).json({ success: true, message: "로그아웃 되었습니다." });
+});
+
 // 임시 비밀번호(인증 코드) 발송 API : POST /users/send-temp-password
 router.post("/send-temp-password", async (req, res) => {
   const { email } = req.body;
@@ -206,6 +214,25 @@ router.put("/:userId/notifications/read-all", async (req, res) => {
   } catch (error) {
     console.error("알림 전체 읽음 처리 에러:", error);
     res.status(500).json({ message: "오류가 발생했습니다." });
+  }
+});
+
+// 회원 탈퇴 API : DELETE /users/account/:userId
+router.delete("/account/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // DB에서 사용자 삭제 (ON DELETE CASCADE로 인해 연관된 데이터도 함께 삭제됨)
+    const [result] = await pool.query("DELETE FROM users WHERE id = ?", [userId]);
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: "사용자를 찾을 수 없습니다." });
+    }
+
+    res.status(200).json({ success: true, message: "회원 탈퇴가 완료되었습니다." });
+  } catch (error) {
+    console.error("회원 탈퇴 에러:", error);
+    res.status(500).json({ success: false, message: "서버 에러가 발생했습니다." });
   }
 });
 
