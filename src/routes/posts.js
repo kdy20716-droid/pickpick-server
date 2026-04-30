@@ -29,32 +29,30 @@ const upload = multer({ storage: storage });
 router.get("/", async (req, res) => {
   try {
     const { keyword, category, sort, user_id } = req.query;
+    let params = [];
 
-    // 기본 쿼리: 좋아요 개수와 댓글 개수를 함께 가져옴
-    let query = `
-      SELECT p.*, 
-             COUNT(DISTINCT l.id) as like_count,
-             COUNT(DISTINCT c.id) as comment_count,
-             (p.candidate_a_count + p.candidate_b_count) as total_votes
+    // 1. SELECT 절 구성: 좋아요/댓글 수는 독립된 서브쿼리로 가져와 데이터 중복 방지
+    let selectClause = `
+      p.*, 
+      (SELECT COUNT(*) FROM likes WHERE post_id = p.id) as like_count,
+      (SELECT COUNT(*) FROM comments WHERE post_id = p.id) as comment_count,
+      (COALESCE(p.candidate_a_count, 0) + COALESCE(p.candidate_b_count, 0)) as total_votes
     `;
 
     if (user_id) {
-      query += `, (SELECT selected_side FROM vote_records WHERE post_id = p.id AND user_id = ?) AS user_voted_side`;
+      selectClause += `, vr.selected_side AS user_voted_side`;
     }
 
-    query += `
-      FROM vote_posts p
-      LEFT JOIN likes l ON p.id = l.post_id
-      LEFT JOIN comments c ON p.id = c.post_id
-    `;
+    let query = `SELECT ${selectClause} FROM vote_posts p`;
 
-    let params = [];
+    // 2. JOIN 절 구성: 유저가 로그인한 경우 투표 기록을 조인
     if (user_id) {
+      query += ` LEFT JOIN vote_records vr ON p.id = vr.post_id AND vr.user_id = ?`;
       params.push(user_id);
     }
 
+    // 3. WHERE 절 구성
     let conditions = [];
-
     if (keyword) {
       conditions.push("(p.title LIKE ? OR p.category LIKE ?)");
       params.push(`%${keyword}%`, `%${keyword}%`);
@@ -69,12 +67,12 @@ router.get("/", async (req, res) => {
       query += " WHERE " + conditions.join(" AND ");
     }
 
-    query += " GROUP BY p.id";
-
-    // 정렬 로직
+    // 4. ORDER BY 절 구성
     let orderClauses = [];
+    
+    // 로그인 시 투표하지 않은 게시글 우선 (NULL 우선 정렬)
     if (user_id) {
-      orderClauses.push("user_voted_side IS NOT NULL"); // 투표 안 한 것(NULL)이 먼저 오도록 정렬 (0, 1)
+      orderClauses.push("vr.selected_side IS NOT NULL ASC"); // NULL(0) < NOT NULL(1)
     }
 
     if (sort === "popular") {
@@ -85,19 +83,24 @@ router.get("/", async (req, res) => {
       orderClauses.push("p.title ASC");
     } else if (sort === "name_desc") {
       orderClauses.push("p.title DESC");
+    } else if (sort === "random") {
+      orderClauses.push("RAND()");
     } else {
-      orderClauses.push("p.created_at DESC"); // 최신순 (기본값)
+      orderClauses.push("p.created_at DESC");
     }
 
-    query += " ORDER BY " + orderClauses.join(", ");
+    if (orderClauses.length > 0) {
+      query += " ORDER BY " + orderClauses.join(", ");
+    }
 
     const [rows] = await pool.query(query, params);
     res.json(rows);
   } catch (error) {
-    console.error("게시글 조회 에러:", error);
+    console.error("게시글 조회 에러 상세:", error);
     res.status(500).json({
       success: false,
       message: "서버 오류로 게시글 조회에 실패했습니다.",
+      error: error.message
     });
   }
 });
@@ -196,6 +199,120 @@ router.post(
     }
   },
 );
+
+// DB 데이터 전체 확인용 API (디버깅용) http://localhost:4000/votelist/debug-data
+router.get("/debug-data", async (req, res) => {
+  try {
+    const [users] = await pool.query("SELECT * FROM users");
+    const [posts] = await pool.query("SELECT * FROM vote_posts");
+    res.json({
+      success: true,
+      userCount: users.length,
+      users: users,
+      postCount: posts.length,
+      posts: posts
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DB 테이블 초기화 API (누락된 테이블 생성용) http://localhost:4000/votelist/init-db
+router.get("/init-db", async (req, res) => {
+  try {
+    // 1. 카테고리 테이블
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS categories (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(50) NOT NULL UNIQUE
+      )
+    `);
+
+    // 2. 유저 테이블 (이미 존재할 경우 name 컬럼이 없을 수 있음)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        nickname VARCHAR(50) NOT NULL UNIQUE,
+        password VARCHAR(255) NOT NULL,
+        name VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // name 컬럼이 없는 경우를 대비해 강제로 추가 시도 (오류 무시)
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN name VARCHAR(50)");
+    } catch (e) {
+      // 이미 컬럼이 있으면 에러가 나지만 무시하고 진행
+    }
+
+
+    // 3. 투표 게시글 테이블
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS vote_posts (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        author_id BIGINT NOT NULL,
+        category VARCHAR(50),
+        title VARCHAR(255) NOT NULL,
+        candidate_a_name VARCHAR(255) NOT NULL,
+        candidate_a_image VARCHAR(255),
+        candidate_a_count INT DEFAULT 0,
+        candidate_b_name VARCHAR(255) NOT NULL,
+        candidate_b_image VARCHAR(255),
+        candidate_b_count INT DEFAULT 0,
+        view_count INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    // 4. 투표 기록 테이블
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS vote_records (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        post_id BIGINT NOT NULL,
+        user_id BIGINT NOT NULL,
+        selected_side ENUM('A', 'B') NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (post_id) REFERENCES vote_posts(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_user_vote (post_id, user_id)
+      )
+    `);
+
+    // 5. 댓글 테이블
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS comments (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        post_id BIGINT NOT NULL,
+        user_id BIGINT NOT NULL,
+        content TEXT NOT NULL,
+        parent_id BIGINT DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (post_id) REFERENCES vote_posts(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    // 6. 좋아요 테이블
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS likes (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        post_id BIGINT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (post_id) REFERENCES vote_posts(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_user_like (post_id, user_id)
+      )
+    `);
+
+    res.json({ success: true, message: "모든 테이블이 성공적으로 확인/생성되었습니다." });
+  } catch (error) {
+    console.error("DB 초기화 에러:", error);
+    res.status(500).json({ success: false, message: "DB 초기화 실패", error: error.message });
+  }
+});
 
 // DB 테이블 확인용 임시 API (포스트맨/브라우저 확인용)
 router.get("/test-db", async (req, res) => {
