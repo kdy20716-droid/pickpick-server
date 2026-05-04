@@ -28,7 +28,7 @@ const upload = multer({ storage: storage });
 // 1. 투표 게시글 목록 조회 API (검색, 카테고리, 정렬 포함) http://localhost:4000/votelist
 router.get("/", async (req, res) => {
   try {
-    const { keyword, category, sort, user_id } = req.query;
+    const { keyword, category, sort, user_id, only_voted, only_liked, author_id } = req.query;
     let params = [];
 
     // 1. SELECT 절 구성: 좋아요/댓글 수는 독립된 서브쿼리로 가져와 데이터 중복 방지
@@ -45,9 +45,18 @@ router.get("/", async (req, res) => {
 
     let query = `SELECT ${selectClause} FROM vote_posts p`;
 
-    // 2. JOIN 절 구성: 유저가 로그인한 경우 투표 기록을 조인
+    // 2. JOIN 절 구성
     if (user_id) {
-      query += ` LEFT JOIN vote_records vr ON p.id = vr.post_id AND vr.user_id = ?`;
+      if (only_voted === "true") {
+        query += ` INNER JOIN vote_records vr ON p.id = vr.post_id AND vr.user_id = ?`;
+      } else {
+        query += ` LEFT JOIN vote_records vr ON p.id = vr.post_id AND vr.user_id = ?`;
+      }
+      params.push(user_id);
+    }
+
+    if (only_liked === "true" && user_id) {
+      query += ` INNER JOIN likes l ON p.id = l.post_id AND l.user_id = ?`;
       params.push(user_id);
     }
 
@@ -61,6 +70,11 @@ router.get("/", async (req, res) => {
     if (category && category !== "전체") {
       conditions.push("p.category = ?");
       params.push(category);
+    }
+
+    if (author_id) {
+      conditions.push("p.author_id = ?");
+      params.push(author_id);
     }
 
     if (conditions.length > 0) {
