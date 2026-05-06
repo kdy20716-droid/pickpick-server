@@ -43,6 +43,11 @@ router.get("/", async (req, res) => {
       selectClause += `, vr.selected_side AS user_voted_side`;
     }
 
+    // 보안 및 로직 체크: 특정 필터링이 필요하지만 유저 ID가 없는 경우 빈 결과 반환
+    if ((only_voted === "true" || only_liked === "true") && !user_id) {
+      return res.json([]);
+    }
+
     let query = `SELECT ${selectClause} FROM vote_posts p`;
 
     // 2. JOIN 절 구성
@@ -253,13 +258,8 @@ router.get("/init-db", async (req, res) => {
       )
     `);
 
-    // name 컬럼이 없는 경우를 대비해 강제로 추가 시도 (오류 무시)
-    try {
-      await pool.query("ALTER TABLE users ADD COLUMN name VARCHAR(50)");
-    } catch (e) {
-      // 이미 컬럼이 있으면 에러가 나지만 무시하고 진행
-    }
-
+    // name 컬럼 추가 시도
+    try { await pool.query("ALTER TABLE users ADD COLUMN name VARCHAR(50)"); } catch (e) {}
 
     // 3. 투표 게시글 테이블
     await pool.query(`
@@ -308,6 +308,10 @@ router.get("/init-db", async (req, res) => {
       )
     `);
 
+    // parent_id 컬럼 추가 시도
+    try { await pool.query("ALTER TABLE comments ADD COLUMN parent_id BIGINT DEFAULT NULL"); } catch (e) {}
+    try { await pool.query("ALTER TABLE comments ADD FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE"); } catch (e) {}
+
     // 6. 좋아요 테이블
     await pool.query(`
       CREATE TABLE IF NOT EXISTS likes (
@@ -318,6 +322,36 @@ router.get("/init-db", async (req, res) => {
         FOREIGN KEY (post_id) REFERENCES vote_posts(id) ON DELETE CASCADE,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         UNIQUE KEY unique_user_like (post_id, user_id)
+      )
+    `);
+
+    // 7. 댓글 좋아요 테이블 (추가)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS comment_likes (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        comment_id BIGINT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_user_comment_like (comment_id, user_id)
+      )
+    `);
+
+    // 8. 알림 테이블 (추가)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        sender_id BIGINT NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        post_id BIGINT NOT NULL,
+        comment_id BIGINT NULL,
+        is_read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (post_id) REFERENCES vote_posts(id) ON DELETE CASCADE
       )
     `);
 
