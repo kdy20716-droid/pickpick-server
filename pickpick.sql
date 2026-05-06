@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
     birth VARCHAR(8),
     gender VARCHAR(10),
     nationality VARCHAR(10),
+    profile_image VARCHAR(255),
     role ENUM('user', 'admin') DEFAULT 'user',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

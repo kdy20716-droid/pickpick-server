@@ -3,8 +3,72 @@ import pool from "../db.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 const router = express.Router();
+
+// uploads 폴더가 없으면 생성
+const uploadDir = "uploads/";
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+
+// 이미지 저장을 위한 multer 설정
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({ storage: storage });
+
+// 프로필 정보 및 사진 업데이트 API : PUT /users/profile/:userId
+router.put("/profile/:userId", upload.single("profile_image"), async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { name, email, birth, gender, nationality } = req.body;
+    const profile_image = req.file ? req.file.filename : null;
+
+    // 업데이트할 필드들을 동적으로 구성
+    let updateFields = [];
+    let params = [];
+
+    if (name !== undefined) { updateFields.push("name = ?"); params.push(name); }
+    if (email !== undefined) { updateFields.push("email = ?"); params.push(email); }
+    if (birth !== undefined) { updateFields.push("birth = ?"); params.push(birth); }
+    if (gender !== undefined) { updateFields.push("gender = ?"); params.push(gender); }
+    if (nationality !== undefined) { updateFields.push("nationality = ?"); params.push(nationality); }
+    if (profile_image) { updateFields.push("profile_image = ?"); params.push(profile_image); }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ message: "수정할 정보가 없습니다." });
+    }
+
+    const query = `UPDATE users SET ${updateFields.join(", ")} WHERE id = ?`;
+    params.push(userId);
+
+    await pool.query(query, params);
+
+    // 업데이트된 사용자 정보 조회
+    const [users] = await pool.query("SELECT * FROM users WHERE id = ?", [userId]);
+    const updatedUser = users[0];
+    delete updatedUser.password;
+
+    res.status(200).json({ 
+      success: true, 
+      message: "프로필이 업데이트되었습니다.",
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error("프로필 업데이트 에러:", error);
+    res.status(500).json({ message: "프로필 업데이트에 실패했습니다." });
+  }
+});
 
 // 회원가입 API : POST /users/signin
 router.post("/signin", async (req, res) => {
