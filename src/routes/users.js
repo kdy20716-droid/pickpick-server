@@ -205,33 +205,49 @@ router.post("/send-email-code", async (req, res) => {
     return res.status(400).json({ message: "이메일을 입력해주세요." });
   }
 
-  // 6자리 랜덤 코드 생성
-  const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
-
-  // 이메일 전송 설정
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
-
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: "[PICKPICK] 이메일 인증 코드 발송",
-    text: `요청하신 이메일 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 회원가입 화면에 입력해주세요.`,
-  };
-
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log("✅ 이메일 발송 성공! 구글 서버 응답:", info.response);
-    // 프론트엔드에서 코드를 비교할 수 있도록 생성된 코드를 응답으로 보내줍니다. (단순화된 방식)
-    res.status(200).json({ message: "인증 코드가 발송되었습니다.", code: tempCode });
+    // 🔍 이메일 중복 체크
+    console.log("🔍 회원가입 페이지에서 이메일 중복 체크:", email);
+    const [existingEmail] = await pool.query("SELECT * FROM users WHERE email = ?", [email]);
+    
+    if (existingEmail.length > 0) {
+      console.log("❌ 이미 가입된 이메일:", email);
+      return res.status(409).json({ message: "이 이메일은 이미 회원가입되었습니다." });
+    }
+
+    console.log("✅ 새로운 이메일입니다:", email);
+
+    // 6자리 랜덤 코드 생성
+    const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // 이메일 전송 설정
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "[PICKPICK] 이메일 인증 코드 발송",
+      text: `요청하신 이메일 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 회원가입 화면에 입력해주세요.`,
+    };
+
+    try {
+      const info = await transporter.sendMail(mailOptions);
+      console.log("✅ 이메일 발송 성공! 구글 서버 응답:", info.response);
+      // 프론트엔드에서 코드를 비교할 수 있도록 생성된 코드를 응답으로 보내줍니다. (단순화된 방식)
+      res.status(200).json({ message: "인증 코드가 발송되었습니다.", code: tempCode });
+    } catch (error) {
+      console.error("❌ 이메일 발송 에러:", error);
+      res.status(500).json({ message: "이메일 발송에 실패했습니다." });
+    }
   } catch (error) {
-    console.error("❌ 이메일 발송 에러:", error);
-    res.status(500).json({ message: "이메일 발송에 실패했습니다." });
+    console.error("❌ 서버 에러:", error);
+    res.status(500).json({ message: "서버 에러가 발생했습니다." });
   }
 });
 
