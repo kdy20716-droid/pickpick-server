@@ -11,11 +11,15 @@ import adminRouter from "./routes/admin.js";
 
 const app = express();
 
-// DB 마이그레이션: role, name 컬럼 추가
+// DB 마이그레이션: 필요한 컬럼 추가
 async function initializeDatabase() {
   try {
     const conn = await pool.getConnection();
     await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(100)`);
+    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(100)`);
+    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS birth VARCHAR(8)`);
+    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS gender VARCHAR(10)`);
+    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS nationality VARCHAR(10)`);
     await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('user', 'admin') DEFAULT 'user'`);
     conn.release();
     console.log("✅ Database schema initialized");
