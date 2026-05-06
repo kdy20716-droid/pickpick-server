@@ -11,6 +11,15 @@ router.post("/signin", async (req, res) => {
   try {
     const { id, pw, name, email, birth, gender, nationality } = req.body;
 
+    console.log("📝 회원가입 요청 받음:", {
+      id,
+      name,
+      email,
+      birth,
+      gender,
+      nationality
+    });
+
     if (!id || !pw || !name || !email) {
       return res.status(400).json({ message: "아이디, 비밀번호, 이름, 이메일은 필수 입력 항목입니다." });
     }
@@ -26,15 +35,25 @@ router.post("/signin", async (req, res) => {
     const hashedPassword = await bcrypt.hash(pw, 10);
 
     // 3. DB에 저장 (모든 정보 포함)
-    await pool.query(
+    const result = await pool.query(
       `INSERT INTO users (nickname, password, name, email, birth, gender, nationality) 
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [id, hashedPassword, name, email, birth, gender, nationality]
     );
 
+    console.log("✅ 회원가입 완료 - DB 저장됨:", {
+      userId: result[0].insertId,
+      nickname: id,
+      email,
+      name,
+      birth,
+      gender,
+      nationality
+    });
+
     res.status(201).json({ message: "회원가입이 완료되었습니다." });
   } catch (error) {
-    console.error("회원가입 에러:", error);
+    console.error("❌ 회원가입 에러:", error);
     res.status(500).json({ message: "서버 에러가 발생했습니다." });
   }
 });
@@ -74,8 +93,20 @@ router.post("/login", async (req, res) => {
       { expiresIn: "1h" }
     );
 
-    // 보안을 위해 비밀번호 정보는 제외하고 전송
-    const { password: _, ...userInfo } = user;
+    // 클라이언트에 전송할 사용자 정보 (비밀번호 제외)
+    const userInfo = {
+      id: user.id,
+      nickname: user.nickname,
+      name: user.name,
+      email: user.email,
+      birth: user.birth,
+      gender: user.gender,
+      nationality: user.nationality,
+      role: user.role || 'user',
+      created_at: user.created_at
+    };
+
+    console.log("🔑 로그인 성공 - 전송되는 유저 정보:", userInfo); // 디버깅 로그
 
     res.status(200).json({
       message: "로그인 성공",
