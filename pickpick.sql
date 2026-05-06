@@ -17,7 +17,12 @@ CREATE TABLE IF NOT EXISTS users (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     nickname VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    name VARCHAR(50),
+    email VARCHAR(100),
+    name VARCHAR(100),
+    birth VARCHAR(8),
+    gender VARCHAR(10),
+    nationality VARCHAR(10),
+    role ENUM('user', 'admin') DEFAULT 'user',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

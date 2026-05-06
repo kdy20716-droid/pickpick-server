@@ -9,12 +9,14 @@ const router = express.Router();
 // 회원가입 API : POST /users/signin
 router.post("/signin", async (req, res) => {
   try {
-    const { id, pw, name } = req.body;
+    const { id, pw, name, email, birth, gender, nationality } = req.body;
 
-    if (!id || !pw || !name) {
+    if (!id || !pw || !name || !email) {
       return res
         .status(400)
-        .json({ message: "아이디, 비밀번호, 이름은 필수 입력 항목입니다." });
+        .json({
+          message: "아이디, 비밀번호, 이름, 이메일은 필수 입력 항목입니다.",
+        });
     }
 
     // 1. 아이디(nickname) 중복체크
@@ -30,10 +32,11 @@ router.post("/signin", async (req, res) => {
     // 2. 비밀번호 암호화
     const hashedPassword = await bcrypt.hash(pw, 10);
 
-    // 3. DB에 저장 (name 컬럼 포함)
+    // 3. DB에 저장 (모든 정보 포함)
     await pool.query(
-      "INSERT INTO users (nickname, password, name) VALUES (?, ?, ?)",
-      [id, hashedPassword, name],
+      `INSERT INTO users (nickname, password, name, email, birth, gender, nationality) 
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, hashedPassword, name, email, birth, gender, nationality],
     );
 
     res.status(201).json({ message: "회원가입이 완료되었습니다." });
@@ -81,7 +84,7 @@ router.post("/login", async (req, res) => {
 
     // 4. 로그인 성공 - JWT 토큰 생성
     const token = jwt.sign(
-      { userId: user.id, nickname: user.nickname },
+      { userId: user.id, nickname: user.nickname, role: user.role || "user" },
       process.env.SECRET_KEY,
       { expiresIn: "1h" },
     );
