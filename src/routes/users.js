@@ -20,21 +20,36 @@ router.post("/signin", async (req, res) => {
       nationality
     });
 
+    // 필수값 체크
     if (!id || !pw || !name || !email) {
+      console.log("❌ 필수 정보 누락");
       return res.status(400).json({ message: "아이디, 비밀번호, 이름, 이메일은 필수 입력 항목입니다." });
     }
 
     // 1. 아이디(nickname) 중복체크
-    const [existingUser] = await pool.query("SELECT * FROM users WHERE nickname = ?", [id]);
+    console.log("🔍 아이디 중복 체크:", id);
+    const [existingUserByNickname] = await pool.query("SELECT * FROM users WHERE nickname = ?", [id]);
     
-    if (existingUser.length > 0) {
+    if (existingUserByNickname.length > 0) {
+      console.log("❌ 아이디 중복:", id);
       return res.status(409).json({ message: "이미 사용 중인 아이디입니다." });
     }
 
-    // 2. 비밀번호 암호화
+    // 2. 이메일 중복체크 (새로 추가)
+    console.log("🔍 이메일 중복 체크:", email);
+    const [existingUserByEmail] = await pool.query("SELECT * FROM users WHERE email = ?", [email]);
+    
+    if (existingUserByEmail.length > 0) {
+      console.log("❌ 이메일 중복:", email);
+      return res.status(409).json({ message: "이 이메일은 이미 회원가입되었습니다." });
+    }
+
+    // 3. 비밀번호 암호화
+    console.log("🔐 비밀번호 암호화 중...");
     const hashedPassword = await bcrypt.hash(pw, 10);
 
-    // 3. DB에 저장 (모든 정보 포함)
+    // 4. DB에 저장 (모든 정보 포함)
+    console.log("💾 DB에 저장 중...");
     const result = await pool.query(
       `INSERT INTO users (nickname, password, name, email, birth, gender, nationality) 
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -44,47 +59,65 @@ router.post("/signin", async (req, res) => {
     console.log("✅ 회원가입 완료 - DB 저장됨:", {
       userId: result[0].insertId,
       nickname: id,
-      email,
       name,
+      email,
       birth,
       gender,
-      nationality
+      nationality,
+      createdAt: new Date().toISOString()
     });
 
     res.status(201).json({ message: "회원가입이 완료되었습니다." });
   } catch (error) {
-    console.error("❌ 회원가입 에러:", error);
+    console.error("❌ 회원가입 에러:", error.message);
     res.status(500).json({ message: "서버 에러가 발생했습니다." });
   }
 });
 
 // 로그인 API : POST /users/login
-// 클라이언트의 login API(instance.post("/users/login", form))와 연결됩니다.
 router.post("/login", async (req, res) => {
   try {
-    // 클라이언트 Login.jsx의 form 데이터: { username, password }
     const { username, password } = req.body;
 
+    console.log("🔑 로그인 요청 받음:", { username });
+
     if (!username || !password) {
+      console.log("❌ 아이디 또는 비밀번호 누락");
       return res.status(400).json({ message: "아이디와 비밀번호를 입력해주세요." });
     }
 
     // 1. 닉네임(아이디)으로 사용자 조회
+    console.log("🔍 DB에서 사용자 조회:", username);
     const [users] = await pool.query("SELECT * FROM users WHERE nickname = ?", [username]);
 
     // 2. 사용자가 존재하지 않는 경우
     if (users.length === 0) {
+      console.log("❌ 사용자를 찾을 수 없음:", username);
       return res.status(401).json({ message: "아이디 또는 비밀번호가 일치하지 않습니다." });
     }
 
     const user = users[0];
+    console.log("✅ DB에서 조회된 사용자:", {
+      id: user.id,
+      nickname: user.nickname,
+      name: user.name,
+      email: user.email,
+      birth: user.birth,
+      gender: user.gender,
+      nationality: user.nationality,
+      role: user.role
+    });
 
     // 3. 비밀번호 비교
+    console.log("🔐 비밀번호 검증 중...");
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
+      console.log("❌ 비밀번호 불일치");
       return res.status(401).json({ message: "아이디 또는 비밀번호가 일치하지 않습니다." });
     }
+
+    console.log("✅ 비밀번호 일치");
 
     // 4. 로그인 성공 - JWT 토큰 생성
     const token = jwt.sign(
@@ -106,7 +139,7 @@ router.post("/login", async (req, res) => {
       created_at: user.created_at
     };
 
-    console.log("🔑 로그인 성공 - 전송되는 유저 정보:", userInfo); // 디버깅 로그
+    console.log("🎉 로그인 성공 - 클라이언트로 전송되는 정보:", userInfo);
 
     res.status(200).json({
       message: "로그인 성공",
@@ -114,7 +147,7 @@ router.post("/login", async (req, res) => {
       token: token
     });
   } catch (error) {
-    console.error("로그인 에러:", error);
+    console.error("❌ 로그인 에러:", error.message);
     res.status(500).json({ message: "서버 에러가 발생했습니다." });
   }
 });
