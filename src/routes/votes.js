@@ -95,7 +95,7 @@ router.get("/:postId/comments", async (req, res) => {
   
   try {
     const [comments] = await pool.query(
-      `SELECT c.*, u.name as author, COUNT(cl.id) as likes
+      `SELECT c.*, COALESCE(u.name, u.nickname) as author, COUNT(cl.id) as likes
        FROM comments c 
        JOIN users u ON c.user_id = u.id 
        LEFT JOIN comment_likes cl ON c.id = cl.comment_id
@@ -106,8 +106,8 @@ router.get("/:postId/comments", async (req, res) => {
     );
     res.status(200).json({ success: true, comments });
   } catch (error) {
-    console.error("댓글 조회 에러:", error);
-    res.status(500).json({ success: false, message: "서버 에러 발생" });
+    console.error("댓글 조회 에러 상세:", error);
+    res.status(500).json({ success: false, message: "서버 에러 발생", error: error.message });
   }
 });
 
@@ -128,43 +128,43 @@ router.post("/:postId/comments", async (req, res) => {
     
     const insertId = result.insertId;
 
-    // 알림 추가 로직
-    const [posts] = await pool.query("SELECT author_id FROM vote_posts WHERE id = ?", [postId]);
-    const postAuthorId = posts.length > 0 ? posts[0].author_id : null;
+    // 알림 추가 로직 (에러 발생 시에도 댓글 작성은 유지되도록 개별 try-catch)
+    try {
+      const [posts] = await pool.query("SELECT author_id FROM vote_posts WHERE id = ?", [postId]);
+      const postAuthorId = posts.length > 0 ? posts[0].author_id : null;
 
-    if (parent_id) {
-      // 대댓글인 경우: 부모 댓글 작성자에게 알림
-      const [parentComments] = await pool.query("SELECT user_id FROM comments WHERE id = ?", [parent_id]);
-      const parentAuthorId = parentComments.length > 0 ? parentComments[0].user_id : null;
+      if (parent_id) {
+        const [parentComments] = await pool.query("SELECT user_id FROM comments WHERE id = ?", [parent_id]);
+        const parentAuthorId = parentComments.length > 0 ? parentComments[0].user_id : null;
 
-      // 1. 부모 댓글 작성자에게 알림 (본인이 답글 단게 아닐 때)
-      if (parentAuthorId && parentAuthorId !== user_id) {
-        await pool.query(
-          "INSERT INTO notifications (user_id, sender_id, type, post_id, comment_id) VALUES (?, ?, ?, ?, ?)",
-          [parentAuthorId, user_id, "REPLY_ON_COMMENT", postId, insertId]
-        );
-      }
+        if (parentAuthorId && parentAuthorId !== user_id) {
+          await pool.query(
+            "INSERT INTO notifications (user_id, sender_id, type, post_id, comment_id) VALUES (?, ?, ?, ?, ?)",
+            [parentAuthorId, user_id, "REPLY_ON_COMMENT", postId, insertId]
+          );
+        }
 
-      // 2. 게시글 작성자에게도 알림 (게시글 작성자가 본인이 아니고, 게시글 작성자가 부모 댓글 작성자가 아닐 때 -> 중복 방지)
-      if (postAuthorId && postAuthorId !== user_id && postAuthorId !== parentAuthorId) {
-        await pool.query(
-          "INSERT INTO notifications (user_id, sender_id, type, post_id, comment_id) VALUES (?, ?, ?, ?, ?)",
-          [postAuthorId, user_id, "COMMENT_ON_POST", postId, insertId]
-        );
+        if (postAuthorId && postAuthorId !== user_id && postAuthorId !== parentAuthorId) {
+          await pool.query(
+            "INSERT INTO notifications (user_id, sender_id, type, post_id, comment_id) VALUES (?, ?, ?, ?, ?)",
+            [postAuthorId, user_id, "COMMENT_ON_POST", postId, insertId]
+          );
+        }
+      } else {
+        if (postAuthorId && postAuthorId !== user_id) {
+          await pool.query(
+            "INSERT INTO notifications (user_id, sender_id, type, post_id, comment_id) VALUES (?, ?, ?, ?, ?)",
+            [postAuthorId, user_id, "COMMENT_ON_POST", postId, insertId]
+          );
+        }
       }
-    } else {
-      // 일반 댓글인 경우: 게시글 작성자에게 알림
-      if (postAuthorId && postAuthorId !== user_id) {
-        await pool.query(
-          "INSERT INTO notifications (user_id, sender_id, type, post_id, comment_id) VALUES (?, ?, ?, ?, ?)",
-          [postAuthorId, user_id, "COMMENT_ON_POST", postId, insertId]
-        );
-      }
+    } catch (notifError) {
+      console.error("알림 생성 중 에러 (댓글 작성은 성공):", notifError);
     }
 
     // 추가된 댓글 정보를 바로 반환 (작성자 이름 포함)
     const [newComment] = await pool.query(
-      `SELECT c.*, u.name as author 
+      `SELECT c.*, COALESCE(u.name, u.nickname) as author 
        FROM comments c 
        JOIN users u ON c.user_id = u.id 
        WHERE c.id = ?`,
@@ -173,8 +173,14 @@ router.post("/:postId/comments", async (req, res) => {
 
     res.status(201).json({ success: true, comment: newComment[0] });
   } catch (error) {
-    console.error("댓글 추가 에러:", error);
-    res.status(500).json({ success: false, message: "서버 에러 발생" });
+    console.error("댓글 추가 에러 상세:", {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+      body: req.body,
+      params: req.params
+    });
+    res.status(500).json({ success: false, message: "서버 에러 발생", error: error.message });
   }
 });
 

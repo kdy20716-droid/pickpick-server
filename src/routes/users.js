@@ -17,19 +17,24 @@ router.post("/signin", async (req, res) => {
       email,
       birth,
       gender,
-      nationality
+      nationality,
     });
 
     // 필수값 체크
     if (!id || !pw || !name || !email) {
       console.log("❌ 필수 정보 누락");
-      return res.status(400).json({ message: "아이디, 비밀번호, 이름, 이메일은 필수 입력 항목입니다." });
+      return res.status(400).json({
+        message: "아이디, 비밀번호, 이름, 이메일은 필수 입력 항목입니다.",
+      });
     }
 
     // 1. 아이디(nickname) 중복체크
     console.log("🔍 아이디 중복 체크:", id);
-    const [existingUserByNickname] = await pool.query("SELECT * FROM users WHERE nickname = ?", [id]);
-    
+    const [existingUserByNickname] = await pool.query(
+      "SELECT * FROM users WHERE nickname = ?",
+      [id],
+    );
+
     if (existingUserByNickname.length > 0) {
       console.log("❌ 아이디 중복:", id);
       return res.status(409).json({ message: "이미 사용 중인 아이디입니다." });
@@ -37,11 +42,16 @@ router.post("/signin", async (req, res) => {
 
     // 2. 이메일 중복체크 (새로 추가)
     console.log("🔍 이메일 중복 체크:", email);
-    const [existingUserByEmail] = await pool.query("SELECT * FROM users WHERE email = ?", [email]);
-    
+    const [existingUserByEmail] = await pool.query(
+      "SELECT * FROM users WHERE email = ?",
+      [email],
+    );
+
     if (existingUserByEmail.length > 0) {
       console.log("❌ 이메일 중복:", email);
-      return res.status(409).json({ message: "이 이메일은 이미 회원가입되었습니다." });
+      return res
+        .status(409)
+        .json({ message: "이 이메일은 이미 회원가입되었습니다." });
     }
 
     // 3. 비밀번호 암호화
@@ -53,7 +63,7 @@ router.post("/signin", async (req, res) => {
     const result = await pool.query(
       `INSERT INTO users (nickname, password, name, email, birth, gender, nationality) 
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [id, hashedPassword, name, email, birth, gender, nationality]
+      [id, hashedPassword, name, email, birth, gender, nationality],
     );
 
     console.log("✅ 회원가입 완료 - DB 저장됨:", {
@@ -64,7 +74,7 @@ router.post("/signin", async (req, res) => {
       birth,
       gender,
       nationality,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     });
 
     res.status(201).json({ message: "회원가입이 완료되었습니다." });
@@ -83,17 +93,23 @@ router.post("/login", async (req, res) => {
 
     if (!username || !password) {
       console.log("❌ 아이디 또는 비밀번호 누락");
-      return res.status(400).json({ message: "아이디와 비밀번호를 입력해주세요." });
+      return res
+        .status(400)
+        .json({ message: "아이디와 비밀번호를 입력해주세요." });
     }
 
     // 1. 닉네임(아이디)으로 사용자 조회
     console.log("🔍 DB에서 사용자 조회:", username);
-    const [users] = await pool.query("SELECT * FROM users WHERE nickname = ?", [username]);
+    const [users] = await pool.query("SELECT * FROM users WHERE nickname = ?", [
+      username,
+    ]);
 
     // 2. 사용자가 존재하지 않는 경우
     if (users.length === 0) {
       console.log("❌ 사용자를 찾을 수 없음:", username);
-      return res.status(401).json({ message: "아이디 또는 비밀번호가 일치하지 않습니다." });
+      return res
+        .status(401)
+        .json({ message: "아이디 또는 비밀번호가 일치하지 않습니다." });
     }
 
     const user = users[0];
@@ -105,7 +121,7 @@ router.post("/login", async (req, res) => {
       birth: user.birth,
       gender: user.gender,
       nationality: user.nationality,
-      role: user.role
+      role: user.role,
     });
 
     // 3. 비밀번호 비교
@@ -114,16 +130,18 @@ router.post("/login", async (req, res) => {
 
     if (!isPasswordValid) {
       console.log("❌ 비밀번호 불일치");
-      return res.status(401).json({ message: "아이디 또는 비밀번호가 일치하지 않습니다." });
+      return res
+        .status(401)
+        .json({ message: "아이디 또는 비밀번호가 일치하지 않습니다." });
     }
 
     console.log("✅ 비밀번호 일치");
 
     // 4. 로그인 성공 - JWT 토큰 생성
     const token = jwt.sign(
-      { userId: user.id, nickname: user.nickname, role: user.role || 'user' },
+      { userId: user.id, nickname: user.nickname, role: user.role || "user" },
       process.env.SECRET_KEY,
-      { expiresIn: "1h" }
+      { expiresIn: "1h" },
     );
 
     // 클라이언트에 전송할 사용자 정보 (비밀번호 제외)
@@ -135,8 +153,8 @@ router.post("/login", async (req, res) => {
       birth: user.birth,
       gender: user.gender,
       nationality: user.nationality,
-      role: user.role || 'user',
-      created_at: user.created_at
+      role: user.role || "user",
+      created_at: user.created_at,
     };
 
     console.log("🎉 로그인 성공 - 클라이언트로 전송되는 정보:", userInfo);
@@ -144,7 +162,7 @@ router.post("/login", async (req, res) => {
     res.status(200).json({
       message: "로그인 성공",
       user: userInfo,
-      token: token
+      token: token,
     });
   } catch (error) {
     console.error("❌ 로그인 에러:", error.message);
@@ -208,11 +226,16 @@ router.post("/send-email-code", async (req, res) => {
   try {
     // 🔍 이메일 중복 체크
     console.log("🔍 회원가입 페이지에서 이메일 중복 체크:", email);
-    const [existingEmail] = await pool.query("SELECT * FROM users WHERE email = ?", [email]);
-    
+    const [existingEmail] = await pool.query(
+      "SELECT * FROM users WHERE email = ?",
+      [email],
+    );
+
     if (existingEmail.length > 0) {
       console.log("❌ 이미 가입된 이메일:", email);
-      return res.status(409).json({ message: "이 이메일은 이미 회원가입되었습니다." });
+      return res
+        .status(409)
+        .json({ message: "이 이메일은 이미 회원가입되었습니다." });
     }
 
     console.log("✅ 새로운 이메일입니다:", email);
@@ -240,7 +263,9 @@ router.post("/send-email-code", async (req, res) => {
       const info = await transporter.sendMail(mailOptions);
       console.log("✅ 이메일 발송 성공! 구글 서버 응답:", info.response);
       // 프론트엔드에서 코드를 비교할 수 있도록 생성된 코드를 응답으로 보내줍니다. (단순화된 방식)
-      res.status(200).json({ message: "인증 코드가 발송되었습니다.", code: tempCode });
+      res
+        .status(200)
+        .json({ message: "인증 코드가 발송되었습니다.", code: tempCode });
     } catch (error) {
       console.error("❌ 이메일 발송 에러:", error);
       res.status(500).json({ message: "이메일 발송에 실패했습니다." });
@@ -262,12 +287,14 @@ router.get("/:userId/notifications", async (req, res) => {
        LEFT JOIN comments c ON n.comment_id = c.id
        WHERE n.user_id = ?
        ORDER BY n.created_at DESC`,
-      [userId]
+      [userId],
     );
     res.status(200).json({ success: true, notifications });
   } catch (error) {
     console.error("알림 조회 에러:", error);
-    res.status(500).json({ message: "알림을 불러오는 중 오류가 발생했습니다." });
+    res
+      .status(500)
+      .json({ message: "알림을 불러오는 중 오류가 발생했습니다." });
   }
 });
 
@@ -277,9 +304,11 @@ router.put("/:userId/notifications/:notifId/read", async (req, res) => {
     const { userId, notifId } = req.params;
     await pool.query(
       "UPDATE notifications SET is_read = TRUE WHERE id = ? AND user_id = ?",
-      [notifId, userId]
+      [notifId, userId],
     );
-    res.status(200).json({ success: true, message: "알림을 읽음 처리했습니다." });
+    res
+      .status(200)
+      .json({ success: true, message: "알림을 읽음 처리했습니다." });
   } catch (error) {
     console.error("알림 읽음 처리 에러:", error);
     res.status(500).json({ message: "오류가 발생했습니다." });
@@ -290,8 +319,13 @@ router.put("/:userId/notifications/:notifId/read", async (req, res) => {
 router.put("/:userId/notifications/read-all", async (req, res) => {
   try {
     const { userId } = req.params;
-    await pool.query("UPDATE notifications SET is_read = TRUE WHERE user_id = ?", [userId]);
-    res.status(200).json({ success: true, message: "모든 알림을 읽음 처리했습니다." });
+    await pool.query(
+      "UPDATE notifications SET is_read = TRUE WHERE user_id = ?",
+      [userId],
+    );
+    res
+      .status(200)
+      .json({ success: true, message: "모든 알림을 읽음 처리했습니다." });
   } catch (error) {
     console.error("알림 전체 읽음 처리 에러:", error);
     res.status(500).json({ message: "오류가 발생했습니다." });
@@ -302,18 +336,26 @@ router.put("/:userId/notifications/read-all", async (req, res) => {
 router.delete("/account/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     // DB에서 사용자 삭제 (ON DELETE CASCADE로 인해 연관된 데이터도 함께 삭제됨)
-    const [result] = await pool.query("DELETE FROM users WHERE id = ?", [userId]);
-    
+    const [result] = await pool.query("DELETE FROM users WHERE id = ?", [
+      userId,
+    ]);
+
     if (result.affectedRows === 0) {
-      return res.status(404).json({ success: false, message: "사용자를 찾을 수 없습니다." });
+      return res
+        .status(404)
+        .json({ success: false, message: "사용자를 찾을 수 없습니다." });
     }
 
-    res.status(200).json({ success: true, message: "회원 탈퇴가 완료되었습니다." });
+    res
+      .status(200)
+      .json({ success: true, message: "회원 탈퇴가 완료되었습니다." });
   } catch (error) {
     console.error("회원 탈퇴 에러:", error);
-    res.status(500).json({ success: false, message: "서버 에러가 발생했습니다." });
+    res
+      .status(500)
+      .json({ success: false, message: "서버 에러가 발생했습니다." });
   }
 });
 
