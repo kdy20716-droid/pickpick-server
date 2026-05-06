@@ -12,12 +12,17 @@ router.post("/signin", async (req, res) => {
     const { id, pw, name } = req.body;
 
     if (!id || !pw || !name) {
-      return res.status(400).json({ message: "아이디, 비밀번호, 이름은 필수 입력 항목입니다." });
+      return res
+        .status(400)
+        .json({ message: "아이디, 비밀번호, 이름은 필수 입력 항목입니다." });
     }
 
     // 1. 아이디(nickname) 중복체크
-    const [existingUser] = await pool.query("SELECT * FROM users WHERE nickname = ?", [id]);
-    
+    const [existingUser] = await pool.query(
+      "SELECT * FROM users WHERE nickname = ?",
+      [id],
+    );
+
     if (existingUser.length > 0) {
       return res.status(409).json({ message: "이미 사용 중인 아이디입니다." });
     }
@@ -28,7 +33,7 @@ router.post("/signin", async (req, res) => {
     // 3. DB에 저장 (name 컬럼 포함)
     await pool.query(
       "INSERT INTO users (nickname, password, name) VALUES (?, ?, ?)",
-      [id, hashedPassword, name]
+      [id, hashedPassword, name],
     );
 
     res.status(201).json({ message: "회원가입이 완료되었습니다." });
@@ -46,15 +51,21 @@ router.post("/login", async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
-      return res.status(400).json({ message: "아이디와 비밀번호를 입력해주세요." });
+      return res
+        .status(400)
+        .json({ message: "아이디와 비밀번호를 입력해주세요." });
     }
 
     // 1. 닉네임(아이디)으로 사용자 조회
-    const [users] = await pool.query("SELECT * FROM users WHERE nickname = ?", [username]);
+    const [users] = await pool.query("SELECT * FROM users WHERE nickname = ?", [
+      username,
+    ]);
 
     // 2. 사용자가 존재하지 않는 경우
     if (users.length === 0) {
-      return res.status(401).json({ message: "아이디 또는 비밀번호가 일치하지 않습니다." });
+      return res
+        .status(401)
+        .json({ message: "아이디 또는 비밀번호가 일치하지 않습니다." });
     }
 
     const user = users[0];
@@ -63,14 +74,16 @@ router.post("/login", async (req, res) => {
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      return res.status(401).json({ message: "아이디 또는 비밀번호가 일치하지 않습니다." });
+      return res
+        .status(401)
+        .json({ message: "아이디 또는 비밀번호가 일치하지 않습니다." });
     }
 
     // 4. 로그인 성공 - JWT 토큰 생성
     const token = jwt.sign(
       { userId: user.id, nickname: user.nickname },
       process.env.SECRET_KEY,
-      { expiresIn: "1h" }
+      { expiresIn: "1h" },
     );
 
     // 보안을 위해 비밀번호 정보는 제외하고 전송
@@ -79,7 +92,7 @@ router.post("/login", async (req, res) => {
     res.status(200).json({
       message: "로그인 성공",
       user: userInfo,
-      token: token
+      token: token,
     });
   } catch (error) {
     console.error("로그인 에러:", error);
@@ -163,7 +176,9 @@ router.post("/send-email-code", async (req, res) => {
     const info = await transporter.sendMail(mailOptions);
     console.log("✅ 이메일 발송 성공! 구글 서버 응답:", info.response);
     // 프론트엔드에서 코드를 비교할 수 있도록 생성된 코드를 응답으로 보내줍니다. (단순화된 방식)
-    res.status(200).json({ message: "인증 코드가 발송되었습니다.", code: tempCode });
+    res
+      .status(200)
+      .json({ message: "인증 코드가 발송되었습니다.", code: tempCode });
   } catch (error) {
     console.error("❌ 이메일 발송 에러:", error);
     res.status(500).json({ message: "이메일 발송에 실패했습니다." });
@@ -181,12 +196,14 @@ router.get("/:userId/notifications", async (req, res) => {
        LEFT JOIN comments c ON n.comment_id = c.id
        WHERE n.user_id = ?
        ORDER BY n.created_at DESC`,
-      [userId]
+      [userId],
     );
     res.status(200).json({ success: true, notifications });
   } catch (error) {
     console.error("알림 조회 에러:", error);
-    res.status(500).json({ message: "알림을 불러오는 중 오류가 발생했습니다." });
+    res
+      .status(500)
+      .json({ message: "알림을 불러오는 중 오류가 발생했습니다." });
   }
 });
 
@@ -196,9 +213,11 @@ router.put("/:userId/notifications/:notifId/read", async (req, res) => {
     const { userId, notifId } = req.params;
     await pool.query(
       "UPDATE notifications SET is_read = TRUE WHERE id = ? AND user_id = ?",
-      [notifId, userId]
+      [notifId, userId],
     );
-    res.status(200).json({ success: true, message: "알림을 읽음 처리했습니다." });
+    res
+      .status(200)
+      .json({ success: true, message: "알림을 읽음 처리했습니다." });
   } catch (error) {
     console.error("알림 읽음 처리 에러:", error);
     res.status(500).json({ message: "오류가 발생했습니다." });
@@ -209,8 +228,13 @@ router.put("/:userId/notifications/:notifId/read", async (req, res) => {
 router.put("/:userId/notifications/read-all", async (req, res) => {
   try {
     const { userId } = req.params;
-    await pool.query("UPDATE notifications SET is_read = TRUE WHERE user_id = ?", [userId]);
-    res.status(200).json({ success: true, message: "모든 알림을 읽음 처리했습니다." });
+    await pool.query(
+      "UPDATE notifications SET is_read = TRUE WHERE user_id = ?",
+      [userId],
+    );
+    res
+      .status(200)
+      .json({ success: true, message: "모든 알림을 읽음 처리했습니다." });
   } catch (error) {
     console.error("알림 전체 읽음 처리 에러:", error);
     res.status(500).json({ message: "오류가 발생했습니다." });
@@ -221,18 +245,26 @@ router.put("/:userId/notifications/read-all", async (req, res) => {
 router.delete("/account/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     // DB에서 사용자 삭제 (ON DELETE CASCADE로 인해 연관된 데이터도 함께 삭제됨)
-    const [result] = await pool.query("DELETE FROM users WHERE id = ?", [userId]);
-    
+    const [result] = await pool.query("DELETE FROM users WHERE id = ?", [
+      userId,
+    ]);
+
     if (result.affectedRows === 0) {
-      return res.status(404).json({ success: false, message: "사용자를 찾을 수 없습니다." });
+      return res
+        .status(404)
+        .json({ success: false, message: "사용자를 찾을 수 없습니다." });
     }
 
-    res.status(200).json({ success: true, message: "회원 탈퇴가 완료되었습니다." });
+    res
+      .status(200)
+      .json({ success: true, message: "회원 탈퇴가 완료되었습니다." });
   } catch (error) {
     console.error("회원 탈퇴 에러:", error);
-    res.status(500).json({ success: false, message: "서버 에러가 발생했습니다." });
+    res
+      .status(500)
+      .json({ success: false, message: "서버 에러가 발생했습니다." });
   }
 });
 
