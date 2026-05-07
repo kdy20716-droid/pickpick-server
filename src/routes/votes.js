@@ -95,8 +95,12 @@ router.get("/:postId/comments", async (req, res) => {
   
   try {
     const [comments] = await pool.query(
+<<<<<<< HEAD
       `SELECT c.*, COALESCE(u.name, u.nickname) as author,
               (SELECT COUNT(*) FROM comment_likes WHERE comment_id = c.id) as likes
+=======
+      `SELECT c.*, COALESCE(u.name, u.nickname) as author, u.profile_image as author_image, COUNT(cl.id) as likes
+>>>>>>> main
        FROM comments c 
        JOIN users u ON c.user_id = u.id 
        WHERE c.post_id = ? 
@@ -161,9 +165,9 @@ router.post("/:postId/comments", async (req, res) => {
       console.error("알림 생성 중 에러 (댓글 작성은 성공):", notifError);
     }
 
-    // 추가된 댓글 정보를 바로 반환 (작성자 이름 포함)
+    // 추가된 댓글 정보를 바로 반환 (작성자 이름 및 프로필 이미지 포함)
     const [newComment] = await pool.query(
-      `SELECT c.*, COALESCE(u.name, u.nickname) as author 
+      `SELECT c.*, COALESCE(u.name, u.nickname) as author, u.profile_image as author_image
        FROM comments c 
        JOIN users u ON c.user_id = u.id 
        WHERE c.id = ?`,
