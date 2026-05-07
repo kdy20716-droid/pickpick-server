@@ -95,12 +95,9 @@ router.get("/:postId/comments", async (req, res) => {
   
   try {
     const [comments] = await pool.query(
-<<<<<<< HEAD
       `SELECT c.*, COALESCE(u.name, u.nickname) as author,
+              u.profile_image as author_image,
               (SELECT COUNT(*) FROM comment_likes WHERE comment_id = c.id) as likes
-=======
-      `SELECT c.*, COALESCE(u.name, u.nickname) as author, u.profile_image as author_image, COUNT(cl.id) as likes
->>>>>>> main
        FROM comments c 
        JOIN users u ON c.user_id = u.id 
        WHERE c.post_id = ? 

@@ -25,24 +25,6 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// uploads 폴더가 없으면 생성
-const uploadDir = "uploads/";
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
-
-// 이미지 저장을 위한 multer 설정
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  },
-});
-
-const upload = multer({ storage: storage });
-
 // 프로필 정보 및 사진 업데이트 API : PUT /users/profile/:userId
 router.put("/profile/:userId", upload.single("profile_image"), async (req, res) => {
   try {
@@ -243,39 +225,6 @@ router.post("/logout", (req, res) => {
   // 추가할 수 있으나, 현재 구조상 클라이언트에서 토큰을 삭제하는 것으로 로그아웃을 처리합니다.
   // 서버는 단순히 성공 응답을 내려줍니다.
   res.status(200).json({ success: true, message: "로그아웃 되었습니다." });
-});
-
-// 프로필 수정 API : PUT /users/profile/:userId
-router.put("/profile/:userId", upload.single("profile_image"), async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const profileImage = req.file?.filename;
-
-    if (!profileImage) {
-      return res.status(400).json({ success: false, message: "프로필 이미지가 필요합니다." });
-    }
-
-    const [result] = await pool.query(
-      "UPDATE users SET profile_image = ? WHERE id = ?",
-      [profileImage, userId]
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ success: false, message: "사용자를 찾을 수 없습니다." });
-    }
-
-    const [users] = await pool.query(
-      `SELECT id, nickname, name, email, birth, gender, nationality, profile_image, role, created_at
-       FROM users
-       WHERE id = ?`,
-      [userId]
-    );
-
-    res.status(200).json({ success: true, user: users[0] });
-  } catch (error) {
-    console.error("프로필 수정 에러:", error);
-    res.status(500).json({ success: false, message: "프로필 수정 중 서버 에러가 발생했습니다." });
-  }
 });
 
 // 임시 비밀번호(인증 코드) 발송 API : POST /users/send-temp-password
