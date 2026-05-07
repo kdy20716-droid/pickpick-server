@@ -181,7 +181,7 @@ router.post("/send-temp-password", async (req, res) => {
   });
 
   const mailOptions = {
-    from: process.env.EMAIL_USER,
+    from: '"PickPick Support" <support@pickpick.dev>',
     to: email,
     subject: "[PICKPICK] 인증 코드 발송",
     text: `요청하신 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 사용하여 비밀번호를 변경해주세요.`,
@@ -236,7 +236,7 @@ router.post("/send-email-code", async (req, res) => {
     });
 
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: '"PickPick Support" <support@pickpick.dev>',
       to: email,
       subject: "[PICKPICK] 이메일 인증 코드 발송",
       text: `요청하신 이메일 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 회원가입 화면에 입력해주세요.`,
