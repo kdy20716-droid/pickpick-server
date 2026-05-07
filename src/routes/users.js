@@ -3,8 +3,27 @@ import pool from "../db.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 const router = express.Router();
+const uploadDir = "uploads/";
+
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({ storage });
 
 // 회원가입 API : POST /users/signin
 router.post("/signin", async (req, res) => {
@@ -77,7 +96,8 @@ router.post("/signin", async (req, res) => {
 // 로그인 API : POST /users/login
 router.post("/login", async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const username = String(req.body.username || "").trim();
+    const password = String(req.body.password || "");
 
     console.log("🔑 로그인 요청 받음:", { username });
 
@@ -86,9 +106,12 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ message: "아이디와 비밀번호를 입력해주세요." });
     }
 
-    // 1. 닉네임(아이디)으로 사용자 조회
+    // 1. 닉네임(아이디) 또는 이메일로 사용자 조회
     console.log("🔍 DB에서 사용자 조회:", username);
-    const [users] = await pool.query("SELECT * FROM users WHERE nickname = ?", [username]);
+    const [users] = await pool.query(
+      "SELECT * FROM users WHERE nickname = ? OR email = ? LIMIT 1",
+      [username, username]
+    );
 
     // 2. 사용자가 존재하지 않는 경우
     if (users.length === 0) {
@@ -135,6 +158,7 @@ router.post("/login", async (req, res) => {
       birth: user.birth,
       gender: user.gender,
       nationality: user.nationality,
+      profile_image: user.profile_image,
       role: user.role || 'user',
       created_at: user.created_at
     };
@@ -160,40 +184,84 @@ router.post("/logout", (req, res) => {
   res.status(200).json({ success: true, message: "로그아웃 되었습니다." });
 });
 
+// 프로필 수정 API : PUT /users/profile/:userId
+router.put("/profile/:userId", upload.single("profile_image"), async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const profileImage = req.file?.filename;
+
+    if (!profileImage) {
+      return res.status(400).json({ success: false, message: "프로필 이미지가 필요합니다." });
+    }
+
+    const [result] = await pool.query(
+      "UPDATE users SET profile_image = ? WHERE id = ?",
+      [profileImage, userId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: "사용자를 찾을 수 없습니다." });
+    }
+
+    const [users] = await pool.query(
+      `SELECT id, nickname, name, email, birth, gender, nationality, profile_image, role, created_at
+       FROM users
+       WHERE id = ?`,
+      [userId]
+    );
+
+    res.status(200).json({ success: true, user: users[0] });
+  } catch (error) {
+    console.error("프로필 수정 에러:", error);
+    res.status(500).json({ success: false, message: "프로필 수정 중 서버 에러가 발생했습니다." });
+  }
+});
+
 // 임시 비밀번호(인증 코드) 발송 API : POST /users/send-temp-password
 router.post("/send-temp-password", async (req, res) => {
-  const { email } = req.body;
+  const email = String(req.body.email || "").trim();
 
   if (!email) {
     return res.status(400).json({ message: "이메일을 입력해주세요." });
   }
 
-  // 6자리 랜덤 코드 생성
-  const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
-
-  // 이메일 전송 설정
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
-
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: "[PICKPICK] 인증 코드 발송",
-    text: `요청하신 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 사용하여 비밀번호를 변경해주세요.`,
-  };
-
   try {
+    const [users] = await pool.query("SELECT id FROM users WHERE email = ?", [email]);
+
+    if (users.length === 0) {
+      return res.status(404).json({ message: "가입된 이메일을 찾을 수 없습니다." });
+    }
+
+    // 임시 비밀번호 생성 및 DB 반영
+    const tempPassword = Math.random().toString(36).slice(2, 10);
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+    // 이메일 전송 설정
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "[PICKPICK] 임시 비밀번호 발송",
+      text: `요청하신 임시 비밀번호는 [ ${tempPassword} ] 입니다.\n로그인 후 비밀번호를 변경해주세요.`,
+    };
+
     const info = await transporter.sendMail(mailOptions);
+    await pool.query("UPDATE users SET password = ? WHERE email = ?", [
+      hashedPassword,
+      email,
+    ]);
     console.log("✅ 이메일 발송 성공! 구글 서버 응답:", info.response);
-    res.status(200).json({ message: "인증 코드가 발송되었습니다." });
+    res.status(200).json({ message: "임시 비밀번호가 발송되었습니다." });
   } catch (error) {
     console.error("❌ 이메일 발송 에러:", error);
-    res.status(500).json({ message: "이메일 발송에 실패했습니다." });
+    res.status(500).json({ message: "임시 비밀번호 발송에 실패했습니다." });
   }
 });
 
