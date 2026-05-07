@@ -58,6 +58,7 @@ app.use("/api/votes", votesRouter);
 app.use("/main", mainRouter)
 app.use("/admin", adminRouter);
 
-app.listen(4000, () => {
-  console.log("4000번 포트번호로 서버 실행중");
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => {
+  console.log(`${PORT}번 포트번호로 서버 실행중`);
 });
