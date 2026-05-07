@@ -1,13 +1,35 @@
 // const express = require("express"); // 옛날 문법
 import express from "express"; // ES 문법 (자바스크립트 최신문법)
+import pool from "./db.js";
 
 // 투표 목록 라우터 파일을 가져온다
 import usersRouter from "./routes/users.js";
 import voteListRouter from "./routes/posts.js";
 import votesRouter from "./routes/votes.js";
 import mainRouter from "./routes/mainLogic.js"
+import adminRouter from "./routes/admin.js";
 
 const app = express();
+
+// DB 마이그레이션: 필요한 컬럼 추가
+async function initializeDatabase() {
+  try {
+    const conn = await pool.getConnection();
+    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(100)`);
+    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(100)`);
+    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS birth VARCHAR(8)`);
+    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS gender VARCHAR(10)`);
+    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS nationality VARCHAR(10)`);
+    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image VARCHAR(255)`);
+    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('user', 'admin') DEFAULT 'user'`);
+    conn.release();
+    console.log("✅ Database schema initialized");
+  } catch (error) {
+    console.error("⚠️ Database initialization:", error.message);
+  }
+}
+
+initializeDatabase();
 
 app.use((req, res, next) => {
   // CORS 허용
@@ -34,6 +56,7 @@ app.use("/users", usersRouter);
 app.use("/votelist", voteListRouter);
 app.use("/api/votes", votesRouter);
 app.use("/main", mainRouter)
+app.use("/admin", adminRouter);
 
 app.listen(4000, () => {
   console.log("4000번 포트번호로 서버 실행중");
