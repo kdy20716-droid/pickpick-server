@@ -20,7 +20,8 @@ const checkAdmin = async (req, res, next) => {
     req.userId = decoded.userId;
     next();
   } catch (error) {
-    return res.status(401).json({ message: "유효하지 않은 토큰입니다." });
+    console.error("Admin Check Error:", error);
+    return res.status(401).json({ message: "유효하지 않은 토큰입니다.", error: error.message });
   }
 };
 
