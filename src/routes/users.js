@@ -267,32 +267,63 @@ router.post("/send-temp-password", async (req, res) => {
     return res.status(400).json({ message: "이메일을 입력해주세요." });
   }
 
-  // 6자리 랜덤 코드 생성
-  const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
-
-  // 이메일 전송 설정
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
-
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: "[PICKPICK] 인증 코드 발송",
-    text: `요청하신 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 사용하여 비밀번호를 변경해주세요.`,
-  };
-
   try {
+    // 1. 가입된 이메일인지 확인
+    const [existingUser] = await pool.query("SELECT * FROM users WHERE email = ?", [email]);
+    if (existingUser.length === 0) {
+      return res.status(404).json({ message: "가입되지 않은 이메일입니다." });
+    }
+
+    // 2. 6자리 랜덤 코드 생성
+    const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // 3. 이메일 전송 설정
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    const mailOptions = {
+      from: `"PICKPICK" <support@pickpick.dev>`,
+      to: email,
+      subject: "[PICKPICK] 비밀번호 찾기 인증 코드 발송",
+      text: `요청하신 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 화면에 입력하여 비밀번호를 변경해주세요.`,
+    };
+
     const info = await transporter.sendMail(mailOptions);
     console.log("✅ 이메일 발송 성공! 구글 서버 응답:", info.response);
-    res.status(200).json({ message: "인증 코드가 발송되었습니다." });
+    
+    // 프론트엔드에서 코드를 확인할 수 있도록 응답에 포함시킴
+    res.status(200).json({ message: "인증 코드가 발송되었습니다.", code: tempCode });
   } catch (error) {
     console.error("❌ 이메일 발송 에러:", error);
     res.status(500).json({ message: "이메일 발송에 실패했습니다." });
+  }
+});
+
+// 비밀번호 변경 API : POST /users/reset-password
+router.post("/reset-password", async (req, res) => {
+  const { email, newPassword } = req.body;
+
+  if (!email || !newPassword) {
+    return res.status(400).json({ message: "이메일과 새 비밀번호를 모두 입력해주세요." });
+  }
+
+  try {
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const [result] = await pool.query("UPDATE users SET password = ? WHERE email = ?", [hashedPassword, email]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+    }
+
+    res.status(200).json({ success: true, message: "비밀번호가 성공적으로 변경되었습니다." });
+  } catch (error) {
+    console.error("❌ 비밀번호 변경 에러:", error);
+    res.status(500).json({ message: "비밀번호 변경에 실패했습니다." });
   }
 });
 
@@ -338,7 +369,7 @@ router.post("/send-email-code", async (req, res) => {
     });
 
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: `"PICKPICK" <support@pickpick.dev>`,
       to: email,
       subject: "[PICKPICK] 이메일 인증 코드 발송",
       text: `요청하신 이메일 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 회원가입 화면에 입력해주세요.`,
