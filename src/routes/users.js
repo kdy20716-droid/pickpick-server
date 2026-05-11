@@ -199,6 +199,7 @@ router.post("/login", async (req, res) => {
       birth: user.birth,
       gender: user.gender,
       nationality: user.nationality,
+      profile_image: user.profile_image,
       role: user.role,
     });
 
@@ -231,6 +232,7 @@ router.post("/login", async (req, res) => {
       birth: user.birth,
       gender: user.gender,
       nationality: user.nationality,
+      profile_image: user.profile_image,
       role: user.role || "user",
       created_at: user.created_at,
     };
