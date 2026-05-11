@@ -4,11 +4,11 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import multer from "multer";
-import { put } from "@vercel/blob";
+import { uploadToCloudinary } from "../utils/cloudinary.js";
 
 const router = express.Router();
 
-// 메모리 스토리지로 변경 (Vercel Blob으로 바로 업로드하기 위함)
+// 메모리 스토리지로 변경 (Cloudinary로 바로 업로드하기 위함)
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
@@ -23,11 +23,8 @@ router.put(
       let profile_image = null;
 
       if (req.file) {
-        // Vercel Blob에 파일 업로드
-        const blob = await put(req.file.originalname, req.file.buffer, {
-          access: "public",
-        });
-        profile_image = blob.url; // 생성된 URL 저장
+        // Cloudinary에 파일 업로드
+        profile_image = await uploadToCloudinary(req.file.buffer, req.file.originalname);
       }
 
       // 업데이트할 필드들을 동적으로 구성

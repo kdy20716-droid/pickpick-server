@@ -1,11 +1,11 @@
 import express from "express";
 import pool from "../db.js"; // DB 연결 가져오기
 import multer from "multer";
-import { put } from "@vercel/blob";
+import { uploadToCloudinary } from "../utils/cloudinary.js";
 
 const router = express.Router();
 
-// 메모리 스토리지로 변경 (Vercel Blob으로 바로 업로드하기 위함)
+// 메모리 스토리지로 변경 (Cloudinary로 바로 업로드하기 위함)
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
@@ -154,19 +154,17 @@ router.post(
       const { author_id, category, title, candidate_a_name, candidate_b_name } =
         req.body;
 
-      // Vercel Blob에 파일 업로드 및 URL 반환
+      // Cloudinary에 파일 업로드 및 URL 반환
       let candidate_a_image = null;
       if (req.files && req.files["candidate_a_image"]) {
         const file = req.files["candidate_a_image"][0];
-        const blob = await put(file.originalname, file.buffer, { access: 'public' });
-        candidate_a_image = blob.url;
+        candidate_a_image = await uploadToCloudinary(file.buffer, file.originalname);
       }
 
       let candidate_b_image = null;
       if (req.files && req.files["candidate_b_image"]) {
         const file = req.files["candidate_b_image"][0];
-        const blob = await put(file.originalname, file.buffer, { access: 'public' });
-        candidate_b_image = blob.url;
+        candidate_b_image = await uploadToCloudinary(file.buffer, file.originalname);
       }
 
       if (!author_id || !title || !candidate_a_name || !candidate_b_name) {
