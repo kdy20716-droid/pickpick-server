@@ -282,7 +282,6 @@ router.post("/send-temp-password", async (req, res) => {
     }
 
     const transporter = nodemailer.createTransport({
-      service: "gmail",
       host: "smtp.gmail.com",
       port: 465,
       secure: true,
@@ -290,7 +289,7 @@ router.post("/send-temp-password", async (req, res) => {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
-      family: 4, // IPv4 강제 설정 (Render IPv6 문제 해결용)
+      family: 4, // IPv4 강제 설정
       connectionTimeout: 15000,
       greetingTimeout: 15000,
     });
@@ -375,7 +374,6 @@ router.post("/send-email-code", async (req, res) => {
     }
 
     const transporter = nodemailer.createTransport({
-      service: "gmail",
       host: "smtp.gmail.com",
       port: 465,
       secure: true,
@@ -383,7 +381,7 @@ router.post("/send-email-code", async (req, res) => {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
-      family: 4, // IPv4 강제 설정 (Render IPv6 문제 해결용)
+      family: 4, // IPv4 강제 설정
       connectionTimeout: 15000,
       greetingTimeout: 15000,
     });
