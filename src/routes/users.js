@@ -277,6 +277,10 @@ router.post("/send-temp-password", async (req, res) => {
     const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     // 3. 이메일 전송 설정
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      throw new Error("이메일 설정(EMAIL_USER, EMAIL_PASS)이 누락되었습니다.");
+    }
+
     const transporter = nodemailer.createTransport({
       service: "gmail",
       host: "smtp.gmail.com",
@@ -286,17 +290,19 @@ router.post("/send-temp-password", async (req, res) => {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
-      // Render 서버에서 IPv6 연결 문제를 방지하기 위해 IPv4 강제 설정
-      connectionTimeout: 10000,
+      family: 4, // IPv4 강제 설정 (Render IPv6 문제 해결용)
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
     });
 
     const mailOptions = {
-      from: `"PICKPICK" <support@pickpick.dev>`,
+      from: `"PICKPICK" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: "[PICKPICK] 비밀번호 찾기 인증 코드 발송",
       text: `요청하신 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 화면에 입력하여 비밀번호를 변경해주세요.`,
     };
 
+    console.log(`📮 [${email}]로 임시 비밀번호 전송 시도 중...`);
     const info = await transporter.sendMail(mailOptions);
     console.log("✅ 이메일 발송 성공! 구글 서버 응답:", info.response);
     
@@ -364,6 +370,10 @@ router.post("/send-email-code", async (req, res) => {
     console.log("📝 생성된 인증코드:", tempCode);
 
     // 이메일 전송 설정
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      throw new Error("이메일 설정(EMAIL_USER, EMAIL_PASS)이 누락되었습니다.");
+    }
+
     const transporter = nodemailer.createTransport({
       service: "gmail",
       host: "smtp.gmail.com",
@@ -373,12 +383,13 @@ router.post("/send-email-code", async (req, res) => {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
-      // Render 서버에서 IPv6 연결 문제를 방지하기 위해 IPv4 강제 설정
-      connectionTimeout: 10000,
+      family: 4, // IPv4 강제 설정 (Render IPv6 문제 해결용)
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
     });
 
     const mailOptions = {
-      from: `"PICKPICK" <support@pickpick.dev>`,
+      from: `"PICKPICK" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: "[PICKPICK] 이메일 인증 코드 발송",
       text: `요청하신 이메일 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 회원가입 화면에 입력해주세요.`,
