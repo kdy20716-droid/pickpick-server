@@ -102,7 +102,7 @@ router.get("/:postId/comments", async (req, res) => {
        JOIN users u ON c.user_id = u.id 
        WHERE c.post_id = ? 
        ORDER BY c.created_at DESC`,
-      [postId]
+      [postId],
     );
     res.status(200).json({ success: true, comments });
   } catch (error) {

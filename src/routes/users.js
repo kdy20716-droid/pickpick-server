@@ -201,6 +201,7 @@ router.post("/login", async (req, res) => {
       birth: user.birth,
       gender: user.gender,
       nationality: user.nationality,
+      profile_image: user.profile_image,
       role: user.role,
     });
 
