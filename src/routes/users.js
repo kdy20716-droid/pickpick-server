@@ -387,12 +387,18 @@ router.post("/send-email-code", async (req, res) => {
       console.error("❌ 이메일 발송 에러:", emailError.message);
       res.status(500).json({
         message: "이메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.",
+        error: emailError.message,
+        envCheck: {
+          user: !!process.env.EMAIL_USER,
+          pass: !!process.env.EMAIL_PASS
+        }
       });
     }
   } catch (error) {
     console.error("❌ 서버 에러:", error.message);
     res.status(500).json({
       message: "서버 에러가 발생했습니다.",
+      error: error.message
     });
   }
 });
