@@ -19,7 +19,8 @@ router.put(
   async (req, res) => {
     try {
       const { userId } = req.params;
-      const { name, email, birth, gender, nationality } = req.body;
+      const { name, email, birth, gender, nationality, remove_profile_image } =
+        req.body;
       let profile_image = null;
 
       if (req.file) {
@@ -54,6 +55,9 @@ router.put(
       if (profile_image) {
         updateFields.push("profile_image = ?");
         params.push(profile_image);
+      }
+      if (remove_profile_image === "true") {
+        updateFields.push("profile_image = NULL");
       }
 
       if (updateFields.length === 0) {

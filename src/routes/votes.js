@@ -9,7 +9,12 @@ router.post("/:postId", async (req, res) => {
   const { user_id, selected_side } = req.body; // 'A' 또는 'B'
 
   if (!user_id || !selected_side) {
-    return res.status(400).json({ success: false, message: "user_id와 selected_side('A' 또는 'B')가 필요합니다." });
+    return res
+      .status(400)
+      .json({
+        success: false,
+        message: "user_id와 selected_side('A' 또는 'B')가 필요합니다.",
+      });
   }
 
   const conn = await pool.getConnection();
@@ -20,35 +25,43 @@ router.post("/:postId", async (req, res) => {
     // 1. 투표 기록 추가 (이미 투표했으면 ER_DUP_ENTRY 에러 발생)
     await conn.query(
       "INSERT INTO vote_records (post_id, user_id, selected_side) VALUES (?, ?, ?)",
-      [postId, user_id, selected_side]
+      [postId, user_id, selected_side],
     );
 
     // 2. 게시글의 해당 진영 투표수 증가
-    const updateColumn = selected_side === "A" ? "candidate_a_count" : "candidate_b_count";
+    const updateColumn =
+      selected_side === "A" ? "candidate_a_count" : "candidate_b_count";
     await conn.query(
       `UPDATE vote_posts SET ${updateColumn} = ${updateColumn} + 1 WHERE id = ?`,
-      [postId]
+      [postId],
     );
 
     // 3. 업데이트된 최신 투표수 가져오기 (비율 계산을 위해)
     const [rows] = await conn.query(
       "SELECT candidate_a_count, candidate_b_count FROM vote_posts WHERE id = ?",
-      [postId]
+      [postId],
     );
 
     await conn.commit();
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       message: "투표 완료!",
-      counts: rows[0]
+      counts: rows[0],
     });
   } catch (error) {
     await conn.rollback();
     if (error.code === "ER_DUP_ENTRY") {
-      res.status(400).json({ success: false, message: "이미 참여한 투표입니다." });
+      res
+        .status(400)
+        .json({ success: false, message: "이미 참여한 투표입니다." });
     } else if (error.code === "ER_NO_REFERENCED_ROW_2") {
       // 외래 키 제약 조건 위배: user_id 또는 post_id가 존재하지 않음
-      res.status(401).json({ success: false, message: "유효하지 않은 계정입니다. 다시 로그인해주세요." });
+      res
+        .status(401)
+        .json({
+          success: false,
+          message: "유효하지 않은 계정입니다. 다시 로그인해주세요.",
+        });
     } else {
       console.error("투표 처리 에러:", error);
       res.status(500).json({ success: false, message: "서버 에러 발생" });
@@ -64,24 +77,36 @@ router.post("/:postId/like", async (req, res) => {
   const { user_id } = req.body;
 
   if (!user_id) {
-    return res.status(400).json({ success: false, message: "user_id가 필요합니다." });
+    return res
+      .status(400)
+      .json({ success: false, message: "user_id가 필요합니다." });
   }
 
   try {
     // 이미 좋아요를 눌렀는지 확인
     const [existingLike] = await pool.query(
       "SELECT * FROM likes WHERE post_id = ? AND user_id = ?",
-      [postId, user_id]
+      [postId, user_id],
     );
 
     if (existingLike.length > 0) {
       // 이미 좋아요를 눌렀으면 취소 (삭제)
-      await pool.query("DELETE FROM likes WHERE post_id = ? AND user_id = ?", [postId, user_id]);
-      return res.status(200).json({ success: true, liked: false, message: "좋아요 취소" });
+      await pool.query("DELETE FROM likes WHERE post_id = ? AND user_id = ?", [
+        postId,
+        user_id,
+      ]);
+      return res
+        .status(200)
+        .json({ success: true, liked: false, message: "좋아요 취소" });
     } else {
       // 좋아요 추가
-      await pool.query("INSERT INTO likes (post_id, user_id) VALUES (?, ?)", [postId, user_id]);
-      return res.status(200).json({ success: true, liked: true, message: "좋아요 추가" });
+      await pool.query("INSERT INTO likes (post_id, user_id) VALUES (?, ?)", [
+        postId,
+        user_id,
+      ]);
+      return res
+        .status(200)
+        .json({ success: true, liked: true, message: "좋아요 추가" });
     }
   } catch (error) {
     console.error("좋아요 처리 에러:", error);
@@ -92,7 +117,7 @@ router.post("/:postId/like", async (req, res) => {
 // 특정 투표의 댓글 조회 API (GET /api/votes/:postId/comments)
 router.get("/:postId/comments", async (req, res) => {
   const { postId } = req.params;
-  
+
   try {
     const [comments] = await pool.query(
       `SELECT c.*, COALESCE(u.name, u.nickname) as author,
@@ -107,7 +132,13 @@ router.get("/:postId/comments", async (req, res) => {
     res.status(200).json({ success: true, comments });
   } catch (error) {
     console.error("댓글 조회 에러 상세:", error);
-    res.status(500).json({ success: false, message: "서버 에러 발생", error: error.message });
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "서버 에러 발생",
+        error: error.message,
+      });
   }
 });
 
@@ -117,44 +148,57 @@ router.post("/:postId/comments", async (req, res) => {
   const { user_id, content, parent_id } = req.body;
 
   if (!user_id || !content) {
-    return res.status(400).json({ success: false, message: "user_id와 content가 필요합니다." });
+    return res
+      .status(400)
+      .json({ success: false, message: "user_id와 content가 필요합니다." });
   }
 
   try {
     const [result] = await pool.query(
       "INSERT INTO comments (post_id, user_id, content, parent_id) VALUES (?, ?, ?, ?)",
-      [postId, user_id, content, parent_id || null]
+      [postId, user_id, content, parent_id || null],
     );
-    
+
     const insertId = result.insertId;
 
     // 알림 추가 로직 (에러 발생 시에도 댓글 작성은 유지되도록 개별 try-catch)
     try {
-      const [posts] = await pool.query("SELECT author_id FROM vote_posts WHERE id = ?", [postId]);
+      const [posts] = await pool.query(
+        "SELECT author_id FROM vote_posts WHERE id = ?",
+        [postId],
+      );
       const postAuthorId = posts.length > 0 ? posts[0].author_id : null;
 
       if (parent_id) {
-        const [parentComments] = await pool.query("SELECT user_id FROM comments WHERE id = ?", [parent_id]);
-        const parentAuthorId = parentComments.length > 0 ? parentComments[0].user_id : null;
+        const [parentComments] = await pool.query(
+          "SELECT user_id FROM comments WHERE id = ?",
+          [parent_id],
+        );
+        const parentAuthorId =
+          parentComments.length > 0 ? parentComments[0].user_id : null;
 
         if (parentAuthorId && parentAuthorId !== user_id) {
           await pool.query(
             "INSERT INTO notifications (user_id, sender_id, type, post_id, comment_id) VALUES (?, ?, ?, ?, ?)",
-            [parentAuthorId, user_id, "REPLY_ON_COMMENT", postId, insertId]
+            [parentAuthorId, user_id, "REPLY_ON_COMMENT", postId, insertId],
           );
         }
 
-        if (postAuthorId && postAuthorId !== user_id && postAuthorId !== parentAuthorId) {
+        if (
+          postAuthorId &&
+          postAuthorId !== user_id &&
+          postAuthorId !== parentAuthorId
+        ) {
           await pool.query(
             "INSERT INTO notifications (user_id, sender_id, type, post_id, comment_id) VALUES (?, ?, ?, ?, ?)",
-            [postAuthorId, user_id, "COMMENT_ON_POST", postId, insertId]
+            [postAuthorId, user_id, "COMMENT_ON_POST", postId, insertId],
           );
         }
       } else {
         if (postAuthorId && postAuthorId !== user_id) {
           await pool.query(
             "INSERT INTO notifications (user_id, sender_id, type, post_id, comment_id) VALUES (?, ?, ?, ?, ?)",
-            [postAuthorId, user_id, "COMMENT_ON_POST", postId, insertId]
+            [postAuthorId, user_id, "COMMENT_ON_POST", postId, insertId],
           );
         }
       }
@@ -168,7 +212,7 @@ router.post("/:postId/comments", async (req, res) => {
        FROM comments c 
        JOIN users u ON c.user_id = u.id 
        WHERE c.id = ?`,
-      [insertId]
+      [insertId],
     );
 
     res.status(201).json({ success: true, comment: newComment[0] });
@@ -178,9 +222,15 @@ router.post("/:postId/comments", async (req, res) => {
       code: error.code,
       stack: error.stack,
       body: req.body,
-      params: req.params
+      params: req.params,
     });
-    res.status(500).json({ success: false, message: "서버 에러 발생", error: error.message });
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "서버 에러 발생",
+        error: error.message,
+      });
   }
 });
 
@@ -190,19 +240,28 @@ router.delete("/:postId/comments/:commentId", async (req, res) => {
   const { user_id } = req.body;
 
   if (!user_id) {
-    return res.status(400).json({ success: false, message: "user_id가 필요합니다." });
+    return res
+      .status(400)
+      .json({ success: false, message: "user_id가 필요합니다." });
   }
 
   try {
     const [result] = await pool.query(
       "DELETE FROM comments WHERE id = ? AND user_id = ?",
-      [commentId, user_id]
+      [commentId, user_id],
     );
 
     if (result.affectedRows > 0) {
-      res.status(200).json({ success: true, message: "댓글이 삭제되었습니다." });
+      res
+        .status(200)
+        .json({ success: true, message: "댓글이 삭제되었습니다." });
     } else {
-      res.status(403).json({ success: false, message: "권한이 없거나 댓글이 존재하지 않습니다." });
+      res
+        .status(403)
+        .json({
+          success: false,
+          message: "권한이 없거나 댓글이 존재하지 않습니다.",
+        });
     }
   } catch (error) {
     console.error("댓글 삭제 에러:", error);
@@ -216,21 +275,33 @@ router.post("/:postId/comments/:commentId/like", async (req, res) => {
   const { user_id } = req.body;
 
   if (!user_id) {
-    return res.status(400).json({ success: false, message: "user_id가 필요합니다." });
+    return res
+      .status(400)
+      .json({ success: false, message: "user_id가 필요합니다." });
   }
 
   try {
     const [existingLike] = await pool.query(
       "SELECT * FROM comment_likes WHERE comment_id = ? AND user_id = ?",
-      [commentId, user_id]
+      [commentId, user_id],
     );
 
     if (existingLike.length > 0) {
-      await pool.query("DELETE FROM comment_likes WHERE comment_id = ? AND user_id = ?", [commentId, user_id]);
-      return res.status(200).json({ success: true, liked: false, message: "댓글 좋아요 취소" });
+      await pool.query(
+        "DELETE FROM comment_likes WHERE comment_id = ? AND user_id = ?",
+        [commentId, user_id],
+      );
+      return res
+        .status(200)
+        .json({ success: true, liked: false, message: "댓글 좋아요 취소" });
     } else {
-      await pool.query("INSERT INTO comment_likes (comment_id, user_id) VALUES (?, ?)", [commentId, user_id]);
-      return res.status(200).json({ success: true, liked: true, message: "댓글 좋아요 추가" });
+      await pool.query(
+        "INSERT INTO comment_likes (comment_id, user_id) VALUES (?, ?)",
+        [commentId, user_id],
+      );
+      return res
+        .status(200)
+        .json({ success: true, liked: true, message: "댓글 좋아요 추가" });
     }
   } catch (error) {
     console.error("댓글 좋아요 처리 에러:", error);
