@@ -1,6 +1,7 @@
 // const express = require("express"); // 옛날 문법
 import express from "express"; // ES 문법 (자바스크립트 최신문법)
 import pool from "./db.js";
+import path from "path";
 
 // 투표 목록 라우터 파일을 가져온다
 import usersRouter from "./routes/users.js";
@@ -49,7 +50,8 @@ app.use((req, res, next) => {
 app.use(express.json());
 
 // uploads 폴더를 정적 폴더로 설정 (이미지 접근 가능하게 함)
-app.use("/uploads", express.static("uploads"));
+const __dirname = path.resolve();
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use("/users", usersRouter);
 // /votelist로 시작하는 모든 요청은 voteListRouter가 처리하도록 위임
@@ -58,6 +60,7 @@ app.use("/api/votes", votesRouter);
 app.use("/main", mainRouter)
 app.use("/admin", adminRouter);
 
-app.listen(4000, () => {
-  console.log("4000번 포트번호로 서버 실행중");
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => {
+  console.log(`${PORT}번 포트번호로 서버 실행중`);
 });
