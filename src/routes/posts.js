@@ -1,28 +1,12 @@
 import express from "express";
 import pool from "../db.js"; // DB 연결 가져오기
 import multer from "multer";
-import path from "path";
-import fs from "fs";
+import { uploadToCloudinary } from "../utils/cloudinary.js";
 
 const router = express.Router();
 
-// uploads 폴더가 없으면 생성
-const uploadDir = "uploads/";
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
-
-// 이미지 저장을 위한 multer 설정
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir); // uploads 폴더에 저장
-  },
-  filename: (req, file, cb) => {
-    // 파일명 중복 방지를 위해 타임스탬프 추가
-    cb(null, Date.now() + path.extname(file.originalname));
-  },
-});
-
+// 메모리 스토리지로 변경 (Cloudinary로 바로 업로드하기 위함)
+const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 // 1. 투표 게시글 목록 조회 API (검색, 카테고리, 정렬 포함) http://localhost:4000/votelist
@@ -170,15 +154,18 @@ router.post(
       const { author_id, category, title, candidate_a_name, candidate_b_name } =
         req.body;
 
-      // 업로드된 파일 정보 가져오기
-      const candidate_a_image =
-        req.files && req.files["candidate_a_image"]
-          ? req.files["candidate_a_image"][0].filename
-          : null;
-      const candidate_b_image =
-        req.files && req.files["candidate_b_image"]
-          ? req.files["candidate_b_image"][0].filename
-          : null;
+      // Cloudinary에 파일 업로드 및 URL 반환
+      let candidate_a_image = null;
+      if (req.files && req.files["candidate_a_image"]) {
+        const file = req.files["candidate_a_image"][0];
+        candidate_a_image = await uploadToCloudinary(file.buffer, file.originalname);
+      }
+
+      let candidate_b_image = null;
+      if (req.files && req.files["candidate_b_image"]) {
+        const file = req.files["candidate_b_image"][0];
+        candidate_b_image = await uploadToCloudinary(file.buffer, file.originalname);
+      }
 
       if (!author_id || !title || !candidate_a_name || !candidate_b_name) {
         return res
