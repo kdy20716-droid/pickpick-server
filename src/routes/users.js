@@ -374,21 +374,21 @@ router.post("/send-email-code", async (req, res) => {
       text: `요청하신 이메일 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 회원가입 화면에 입력해주세요.`,
     };
 
-    try {
-      console.log("📮 Gmail 서버로 이메일 전송 중...");
-      const info = await transporter.sendMail(mailOptions);
-      console.log("✅ 이메일 발송 성공! 구글 서버 응답:", info.response);
+    // 🚀 비동기로 이메일 전송 (기다리지 않고 바로 클라이언트에 응답)
+    console.log("📮 Gmail 서버로 이메일 전송 요청 완료 (백그라운드 진행 중...)");
+    transporter.sendMail(mailOptions)
+      .then((info) => {
+        console.log("✅ 백그라운드 이메일 발송 성공! 구글 서버 응답:", info.response);
+      })
+      .catch((emailError) => {
+        console.error("❌ 백그라운드 이메일 발송 에러:", emailError.message);
+      });
 
-      res.status(200).json({
-        message: "인증 코드가 발송되었습니다.",
-        code: tempCode,
-      });
-    } catch (emailError) {
-      console.error("❌ 이메일 발송 에러:", emailError.message);
-      res.status(500).json({
-        message: "이메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.",
-      });
-    }
+    // 클라이언트에게는 기다리게 하지 않고 즉시 성공 응답 반환
+    res.status(200).json({
+      message: "인증 코드가 발송되었습니다.",
+      code: tempCode,
+    });
   } catch (error) {
     console.error("❌ 서버 에러:", error.message);
     res.status(500).json({
