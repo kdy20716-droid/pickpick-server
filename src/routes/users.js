@@ -290,9 +290,12 @@ router.post("/send-temp-password", async (req, res) => {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
-      family: 4, // IPv4 강제 설정
-      connectionTimeout: 15000,
-      greetingTimeout: 15000,
+      // DNS 조회 시 IPv4 주소만 사용하도록 강제
+      lookup: (hostname, options, callback) => {
+        dns.lookup(hostname, { family: 4 }, callback);
+      },
+      connectionTimeout: 20000,
+      greetingTimeout: 20000,
     });
 
     const mailOptions = {
@@ -309,8 +312,12 @@ router.post("/send-temp-password", async (req, res) => {
     // 프론트엔드에서 코드를 확인할 수 있도록 응답에 포함시킴
     res.status(200).json({ message: "인증 코드가 발송되었습니다.", code: tempCode });
   } catch (error) {
-    console.error("❌ 이메일 발송 에러:", error);
-    res.status(500).json({ message: "이메일 발송에 실패했습니다." });
+    console.error("❌ 이메일 발송 에러 상세:", error);
+    res.status(500).json({ 
+      message: "이메일 발송에 실패했습니다.", 
+      error: error.message,
+      code: error.code 
+    });
   }
 });
 
@@ -382,9 +389,12 @@ router.post("/send-email-code", async (req, res) => {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
-      family: 4, // IPv4 강제 설정
-      connectionTimeout: 15000,
-      greetingTimeout: 15000,
+      // DNS 조회 시 IPv4 주소만 사용하도록 강제
+      lookup: (hostname, options, callback) => {
+        dns.lookup(hostname, { family: 4 }, callback);
+      },
+      connectionTimeout: 20000,
+      greetingTimeout: 20000,
     });
 
     const mailOptions = {
@@ -404,10 +414,11 @@ router.post("/send-email-code", async (req, res) => {
         code: tempCode,
       });
     } catch (emailError) {
-      console.error("❌ 이메일 발송 에러:", emailError.message);
+      console.error("❌ 이메일 발송 에러 상세:", emailError);
       res.status(500).json({
         message: "이메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.",
         error: emailError.message,
+        code: emailError.code,
         envCheck: {
           user: !!process.env.EMAIL_USER,
           pass: !!process.env.EMAIL_PASS
@@ -493,21 +504,6 @@ router.delete("/account/:userId", async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "사용자를 찾을 수 없습니다." });
-    }
-
-    res
-      .status(200)
-      .json({ success: true, message: "회원 탈퇴가 완료되었습니다." });
-  } catch (error) {
-    console.error("회원 탈퇴 에러:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "서버 에러가 발생했습니다." });
-  }
-});
-
-export default router;
-니다." });
     }
 
     res
