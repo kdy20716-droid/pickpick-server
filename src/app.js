@@ -1,3 +1,4 @@
+import "dotenv/config";
 // const express = require("express"); // 옛날 문법
 import express from "express"; // ES 문법 (자바스크립트 최신문법)
 import pool from "./db.js";
@@ -6,7 +7,7 @@ import pool from "./db.js";
 import usersRouter from "./routes/users.js";
 import voteListRouter from "./routes/posts.js";
 import votesRouter from "./routes/votes.js";
-import mainRouter from "./routes/mainLogic.js"
+import mainRouter from "./routes/mainLogic.js";
 import adminRouter from "./routes/admin.js";
 
 const app = express();
@@ -15,13 +16,27 @@ const app = express();
 async function initializeDatabase() {
   try {
     const conn = await pool.getConnection();
-    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(100)`);
-    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(100)`);
-    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS birth VARCHAR(8)`);
-    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS gender VARCHAR(10)`);
-    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS nationality VARCHAR(10)`);
-    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image VARCHAR(255)`);
-    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('user', 'admin') DEFAULT 'user'`);
+    await conn.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(100)`,
+    );
+    await conn.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(100)`,
+    );
+    await conn.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS birth VARCHAR(8)`,
+    );
+    await conn.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS gender VARCHAR(10)`,
+    );
+    await conn.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS nationality VARCHAR(10)`,
+    );
+    await conn.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image VARCHAR(255)`,
+    );
+    await conn.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('user', 'admin') DEFAULT 'user'`,
+    );
     conn.release();
     console.log("✅ Database schema initialized");
   } catch (error) {
@@ -38,7 +53,7 @@ app.use((req, res, next) => {
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   // JSON 데이터를 받을수있도록 허용
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  
+
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
@@ -55,7 +70,7 @@ app.use("/users", usersRouter);
 // /votelist로 시작하는 모든 요청은 voteListRouter가 처리하도록 위임
 app.use("/votelist", voteListRouter);
 app.use("/api/votes", votesRouter);
-app.use("/main", mainRouter)
+app.use("/main", mainRouter);
 app.use("/admin", adminRouter);
 
 app.listen(4000, () => {
