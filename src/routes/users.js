@@ -279,10 +279,15 @@ router.post("/send-temp-password", async (req, res) => {
     // 3. 이메일 전송 설정
     const transporter = nodemailer.createTransport({
       service: "gmail",
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
+      // Render 서버에서 IPv6 연결 문제를 방지하기 위해 IPv4 강제 설정
+      connectionTimeout: 10000,
     });
 
     const mailOptions = {
@@ -361,10 +366,15 @@ router.post("/send-email-code", async (req, res) => {
     // 이메일 전송 설정
     const transporter = nodemailer.createTransport({
       service: "gmail",
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
+      // Render 서버에서 IPv6 연결 문제를 방지하기 위해 IPv4 강제 설정
+      connectionTimeout: 10000,
     });
 
     const mailOptions = {
