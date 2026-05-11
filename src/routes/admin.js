@@ -48,11 +48,9 @@ router.post("/send-verification", checkAdmin, async (req, res) => {
       text: `관리자 대시보드 접근을 위한 인증 코드는 [ ${tempCode} ] 입니다.\n이 코드를 화면에 입력하여 인증을 완료해주세요.`,
     };
 
-    // 비동기 전송
-    console.log(`📮 관리자 인증 메일 전송 요청 완료 (대상: ${adminEmail})`);
-    transporter.sendMail(mailOptions)
-      .then((info) => console.log("✅ 관리자 이메일 발송 성공:", info.response))
-      .catch((error) => console.error("❌ 관리자 이메일 발송 에러:", error.message));
+    console.log(`📮 관리자 인증 메일 전송 중... (대상: ${adminEmail})`);
+    const info = await transporter.sendMail(mailOptions);
+    console.log("✅ 관리자 이메일 발송 성공! 구글 서버 응답:", info.response);
 
     res.status(200).json({
       success: true,
