@@ -235,6 +235,25 @@ router.post("/send-temp-password", async (req, res) => {
     return res.status(400).json({ message: "이메일을 입력해주세요." });
   }
 
+  // 6자리 랜덤 코드 생성
+  const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+  // 이메일 전송 설정
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+
+  const mailOptions = {
+    from: '"PickPick Support" <support@pickpick.dev>',
+    to: email,
+    subject: "[PICKPICK] 인증 코드 발송",
+    text: `요청하신 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 사용하여 비밀번호를 변경해주세요.`,
+  };
+
   try {
     const [users] = await pool.query("SELECT id FROM users WHERE email = ?", [email]);
 
@@ -314,7 +333,7 @@ router.post("/send-email-code", async (req, res) => {
     });
 
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: '"PickPick Support" <support@pickpick.dev>',
       to: email,
       subject: "[PICKPICK] 이메일 인증 코드 발송",
       text: `요청하신 이메일 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 회원가입 화면에 입력해주세요.`,
