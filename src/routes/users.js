@@ -13,80 +13,84 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 // 프로필 정보 및 사진 업데이트 API : PUT /users/profile/:userId
-router.put(
-  "/profile/:userId",
-  upload.single("profile_image"),
-  async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const { name, email, birth, gender, nationality, remove_profile_image } =
-        req.body;
-      let profile_image = null;
+router.put("/profile/:userId", upload.any(), async (req, res) => {
+  try {
+    console.log("req.headers:", req.headers);
+    console.log("req.body:", req.body);
+    console.log("req.files:", req.files);
+    const { userId } = req.params;
+    const { name, email, birth, gender, nationality, remove_profile_image } =
+      req.body;
 
-      if (req.file) {
-        // Cloudinary에 파일 업로드
-        profile_image = await uploadToCloudinary(req.file.buffer, req.file.originalname);
-      }
-
-      // 업데이트할 필드들을 동적으로 구성
-      let updateFields = [];
-      let params = [];
-
-      if (name !== undefined) {
-        updateFields.push("name = ?");
-        params.push(name);
-      }
-      if (email !== undefined) {
-        updateFields.push("email = ?");
-        params.push(email);
-      }
-      if (birth !== undefined) {
-        updateFields.push("birth = ?");
-        params.push(birth);
-      }
-      if (gender !== undefined) {
-        updateFields.push("gender = ?");
-        params.push(gender);
-      }
-      if (nationality !== undefined) {
-        updateFields.push("nationality = ?");
-        params.push(nationality);
-      }
-      if (profile_image) {
-        updateFields.push("profile_image = ?");
-        params.push(profile_image);
-      }
-      if (remove_profile_image === "true") {
-        updateFields.push("profile_image = NULL");
-      }
-
-      if (updateFields.length === 0) {
-        return res.status(400).json({ message: "수정할 정보가 없습니다." });
-      }
-
-      const query = `UPDATE users SET ${updateFields.join(", ")} WHERE id = ?`;
-      params.push(userId);
-
-      await pool.query(query, params);
-
-      // 업데이트된 사용자 정보 조회
-      const [users] = await pool.query("SELECT * FROM users WHERE id = ?", [
-        userId,
-      ]);
-      const updatedUser = users[0];
-      delete updatedUser.password;
-
-      res.status(200).json({
-        success: true,
-        message: "프로필이 업데이트되었습니다.",
-        user: updatedUser,
-      });
-    } catch (error) {
-      console.error("프로필 업데이트 에러:", error);
-      res.status(500).json({ message: "프로필 업데이트에 실패했습니다." });
+    if (remove_profile_image === "true") {
+      console.log("Removing profile image");
     }
-  },
-);
+    let profile_image = null;
+
+    if (req.files && req.files.length > 0) {
+      // Cloudinary에 파일 업로드
+      const file = req.files[0];
+      profile_image = await uploadToCloudinary(file.buffer, file.originalname);
+    }
+
+    // 업데이트할 필드들을 동적으로 구성
+    let updateFields = [];
+    let params = [];
+
+    if (name !== undefined) {
+      updateFields.push("name = ?");
+      params.push(name);
+    }
+    if (email !== undefined) {
+      updateFields.push("email = ?");
+      params.push(email);
+    }
+    if (birth !== undefined) {
+      updateFields.push("birth = ?");
+      params.push(birth);
+    }
+    if (gender !== undefined) {
+      updateFields.push("gender = ?");
+      params.push(gender);
+    }
+    if (nationality !== undefined) {
+      updateFields.push("nationality = ?");
+      params.push(nationality);
+    }
+    if (profile_image) {
+      updateFields.push("profile_image = ?");
+      params.push(profile_image);
+    }
+    if (remove_profile_image === "true") {
+      updateFields.push("profile_image = NULL");
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ message: "수정할 정보가 없습니다." });
+    }
+
+    const query = `UPDATE users SET ${updateFields.join(", ")} WHERE id = ?`;
+    params.push(userId);
+
+    await pool.query(query, params);
+
+    // 업데이트된 사용자 정보 조회
+    const [users] = await pool.query("SELECT * FROM users WHERE id = ?", [
+      userId,
+    ]);
+    const updatedUser = users[0];
+    delete updatedUser.password;
+
+    res.status(200).json({
+      success: true,
+      message: "프로필이 업데이트되었습니다.",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("프로필 업데이트 에러:", error);
+    res.status(500).json({ message: "프로필 업데이트에 실패했습니다." });
+  }
+});
 
 // 회원가입 API : POST /users/signin
 router.post("/signin", async (req, res) => {
@@ -245,6 +249,11 @@ router.post("/login", async (req, res) => {
 
     console.log("🎉 로그인 성공 - 클라이언트로 전송되는 정보:", userInfo);
 
+    // last_login 업데이트
+    await pool.query("UPDATE users SET last_login = NOW() WHERE id = ?", [
+      user.id,
+    ]);
+
     res.status(200).json({
       message: "로그인 성공",
       user: userInfo,
@@ -321,18 +330,26 @@ router.post("/reset-password", async (req, res) => {
   const { email, newPassword } = req.body;
 
   if (!email || !newPassword) {
-    return res.status(400).json({ message: "이메일과 새 비밀번호를 모두 입력해주세요." });
+    return res
+      .status(400)
+      .json({ message: "이메일과 새 비밀번호를 모두 입력해주세요." });
   }
 
   try {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    const [result] = await pool.query("UPDATE users SET password = ? WHERE email = ?", [hashedPassword, email]);
+    const [result] = await pool.query(
+      "UPDATE users SET password = ? WHERE email = ?",
+      [hashedPassword, email],
+    );
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
     }
 
-    res.status(200).json({ success: true, message: "비밀번호가 성공적으로 변경되었습니다." });
+    res.status(200).json({
+      success: true,
+      message: "비밀번호가 성공적으로 변경되었습니다.",
+    });
   } catch (error) {
     console.error("❌ 비밀번호 변경 에러:", error);
     res.status(500).json({ message: "비밀번호 변경에 실패했습니다." });
@@ -388,10 +405,16 @@ router.post("/send-email-code", async (req, res) => {
     };
 
     // 🚀 비동기로 이메일 전송 (기다리지 않고 바로 클라이언트에 응답)
-    console.log("📮 Gmail 서버로 이메일 전송 요청 완료 (백그라운드 진행 중...)");
-    transporter.sendMail(mailOptions)
+    console.log(
+      "📮 Gmail 서버로 이메일 전송 요청 완료 (백그라운드 진행 중...)",
+    );
+    transporter
+      .sendMail(mailOptions)
       .then((info) => {
-        console.log("✅ 백그라운드 이메일 발송 성공! 구글 서버 응답:", info.response);
+        console.log(
+          "✅ 백그라운드 이메일 발송 성공! 구글 서버 응답:",
+          info.response,
+        );
       })
       .catch((emailError) => {
         console.error("❌ 백그라운드 이메일 발송 에러:", emailError.message);
@@ -490,6 +513,33 @@ router.delete("/account/:userId", async (req, res) => {
     res
       .status(500)
       .json({ success: false, message: "서버 에러가 발생했습니다." });
+  }
+});
+
+// 로그인 기록 조회 API : GET /users/login-history/:userId
+router.get("/login-history/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // 사용자의 last_login 가져오기
+    const [users] = await pool.query(
+      "SELECT last_login FROM users WHERE id = ?",
+      [userId],
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+    }
+
+    const lastLogin = users[0].last_login;
+
+    res.status(200).json({
+      success: true,
+      lastLogin: lastLogin,
+    });
+  } catch (error) {
+    console.error("로그인 기록 조회 에러:", error);
+    res.status(500).json({ message: "서버 에러가 발생했습니다." });
   }
 });
 

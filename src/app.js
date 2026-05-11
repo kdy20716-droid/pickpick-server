@@ -38,6 +38,9 @@ async function initializeDatabase() {
     await conn.query(
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('user', 'admin') DEFAULT 'user'`,
     );
+    await conn.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
+    );
     conn.release();
     console.log("✅ Database schema initialized");
   } catch (error) {
