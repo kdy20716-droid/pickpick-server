@@ -278,37 +278,42 @@ router.post("/send-temp-password", async (req, res) => {
     const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     // 3. 이메일 전송 설정
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      throw new Error("이메일 설정(EMAIL_USER, EMAIL_PASS)이 누락되었습니다.");
+    const emailUser = process.env.EMAIL_USER;
+    const emailPass = process.env.EMAIL_PASS?.replace(/\s/g, ""); // 공백 제거
+
+    if (!emailUser || !emailPass) {
+      return res.status(500).json({ message: "서버 이메일 설정이 누락되었습니다." });
     }
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
+        user: emailUser,
+        pass: emailPass,
+      },
+      // Render 환경 등에서 IPv6 문제 해결을 위해 IPv4 강제
+      lookup: (hostname, options, callback) => {
+        dns.lookup(hostname, { family: 4 }, callback);
       },
     });
 
     const mailOptions = {
-      from: `"PICKPICK" <${process.env.EMAIL_USER}>`,
+      from: `"PICKPICK" <${emailUser}>`,
       to: email,
       subject: "[PICKPICK] 비밀번호 찾기 인증 코드 발송",
       text: `요청하신 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 화면에 입력하여 비밀번호를 변경해주세요.`,
     };
 
     console.log(`📮 [${email}]로 임시 비밀번호 전송 시도 중...`);
-    const info = await transporter.sendMail(mailOptions);
-    console.log("✅ 이메일 발송 성공! 구글 서버 응답:", info.response);
+    await transporter.sendMail(mailOptions);
+    console.log("✅ 임시 비밀번호 발송 성공!");
     
-    // 프론트엔드에서 코드를 확인할 수 있도록 응답에 포함시킴
     res.status(200).json({ message: "인증 코드가 발송되었습니다.", code: tempCode });
   } catch (error) {
-    console.error("❌ 이메일 발송 에러 상세:", error);
+    console.error("❌ 임시 비밀번호 발송 에러:", error);
     res.status(500).json({ 
-      message: "이메일 발송에 실패했습니다.", 
-      error: error.message,
-      code: error.code 
+      message: "이메일 발송에 실패했습니다. 앱 비밀번호를 확인해주세요.", 
+      error: error.message 
     });
   }
 });
@@ -343,64 +348,41 @@ router.post("/send-email-code", async (req, res) => {
   console.log("📧 이메일 코드 발송 요청:", email);
 
   if (!email) {
-    console.log("❌ 이메일 미입력");
     return res.status(400).json({ message: "이메일을 입력해주세요." });
   }
 
   try {
-    // 🔍 이메일 중복 체크 (최우선)
+    // 🔍 이메일 중복 체크
     console.log("🔍 이메일 중복 체크 시작:", email);
-    let existingEmail;
-    try {
-      const [rows] = await pool.query(
-        "SELECT * FROM users WHERE email = ?",
-        [email],
-      );
-      existingEmail = rows;
-    } catch (dbError) {
-      console.error("❌ DB 조회 중 에러 발생:", dbError);
-      return res.status(500).json({
-        message: "데이터베이스 조회 중 오류가 발생했습니다. DB 설정을 확인해주세요.",
-        error: dbError.message
-      });
-    }
+    const [existingEmail] = await pool.query("SELECT * FROM users WHERE email = ?", [email]);
 
     if (existingEmail.length > 0) {
-      console.log("❌ 이미 가입된 이메일 중단:", email);
       return res.status(409).json({
         message: "이미 회원가입된 이메일입니다. 다른 이메일을 사용하거나 비밀번호 찾기를 이용해주세요.",
         isDuplicate: true
       });
     }
 
-    console.log("✅ 새로운 이메일 인증 코드 생성 시작:", email);
-
     // 6자리 랜덤 코드 생성
     const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
-    console.log("📝 생성된 인증코드:", tempCode);
 
     // 이메일 전송 설정
     const emailUser = process.env.EMAIL_USER;
-    const emailPass = process.env.EMAIL_PASS;
+    const emailPass = process.env.EMAIL_PASS?.replace(/\s/g, ""); // 공백 제거
 
     if (!emailUser || !emailPass) {
-      console.error("❌ 서버 환경변수 누락: EMAIL_USER 또는 EMAIL_PASS가 없습니다.");
-      return res.status(500).json({ 
-        message: "서버의 이메일 설정(환경변수)이 누락되었습니다. Render 설정을 확인해주세요.",
-        envCheck: { user: !!emailUser, pass: !!emailPass }
-      });
+      return res.status(500).json({ message: "서버 이메일 설정이 누락되었습니다." });
     }
 
-    console.log("🛠 Nodemailer 트랜스포터 생성 중...");
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
         user: emailUser,
         pass: emailPass,
       },
-      connectionTimeout: 10000, 
-      greetingTimeout: 10000,
-      socketTimeout: 10000,
+      lookup: (hostname, options, callback) => {
+        dns.lookup(hostname, { family: 4 }, callback);
+      },
     });
 
     const mailOptions = {
@@ -411,29 +393,24 @@ router.post("/send-email-code", async (req, res) => {
     };
 
     try {
-      console.log(`📮 [${email}]로 이메일 전송 시도 시작 (tempCode: ${tempCode})...`);
-      
-      const info = await transporter.sendMail(mailOptions);
-      console.log("✅ 이메일 발송 성공! 응답:", info.response);
+      console.log(`📮 [${email}]로 인증 코드 전송 시도...`);
+      await transporter.sendMail(mailOptions);
+      console.log("✅ 인증 코드 발송 성공!");
 
       res.status(200).json({
         message: "인증 코드가 발송되었습니다.",
         code: tempCode,
       });
     } catch (emailError) {
-      console.error("❌ 이메일 전송 단계 에러 발생:", emailError);
+      console.error("❌ 이메일 전송 에러:", emailError);
       res.status(500).json({
-        message: "Gmail 서버를 통한 메일 발송에 실패했습니다. 앱 비밀번호를 확인해주세요.",
-        error: emailError.message,
-        code: emailError.code
+        message: "Gmail 서버 전송 실패. 앱 비밀번호를 확인해주세요.",
+        error: emailError.message
       });
     }
   } catch (error) {
-    console.error("❌ 예상치 못한 서버 에러:", error);
-    res.status(500).json({
-      message: "서버에서 알 수 없는 오류가 발생했습니다.",
-      error: error.message
-    });
+    console.error("❌ 서버 에러:", error);
+    res.status(500).json({ message: "서버 오류가 발생했습니다.", error: error.message });
   }
 });
 
