@@ -3,10 +3,8 @@ import express from "express";
 import cors from "cors";
 import pool from "./db.js";
 import path from "path";
-import nodemailer from "nodemailer";
 import dns from "dns";
 import { promisify } from "util";
-import net from "net";
 
 import { sendEmail } from "./utils/email.js";
 

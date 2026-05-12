@@ -276,39 +276,20 @@ router.post("/send-temp-password", async (req, res) => {
     // 2. 6자리 랜덤 코드 생성
     const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // 3. 이메일 전송 설정
-    const emailUser = process.env.EMAIL_USER;
-    const emailPass = process.env.EMAIL_PASS?.replace(/\s/g, ""); // 공백 제거
-
-    if (!emailUser || !emailPass) {
-      return res.status(500).json({ message: "서버 이메일 설정이 누락되었습니다." });
-    }
-
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      pool: true,
-      auth: {
-        user: emailUser,
-        pass: emailPass,
-      },
-    });
-
-    const mailOptions = {
-      from: `"PICKPICK" <${emailUser}>`,
+    // 3. 이메일 전송 (Brevo)
+    console.log(`📮 [${email}]로 임시 비밀번호 전송 시도 중 (Brevo)...`);
+    await sendEmail({
       to: email,
       subject: "[PICKPICK] 비밀번호 찾기 인증 코드 발송",
       text: `요청하신 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 화면에 입력하여 비밀번호를 변경해주세요.`,
-    };
-
-    console.log(`📮 [${email}]로 임시 비밀번호 전송 시도 중...`);
-    await transporter.sendMail(mailOptions);
+    });
     console.log("✅ 임시 비밀번호 발송 성공!");
     
     res.status(200).json({ message: "인증 코드가 발송되었습니다.", code: tempCode });
   } catch (error) {
     console.error("❌ 임시 비밀번호 발송 에러:", error);
     res.status(500).json({ 
-      message: "이메일 발송에 실패했습니다. 앱 비밀번호를 확인해주세요.", 
+      message: "이메일 발송에 실패했습니다. (Brevo)", 
       error: error.message 
     });
   }

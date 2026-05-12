@@ -1,7 +1,7 @@
 import express from "express";
 import pool from "../db.js";
 import jwt from "jsonwebtoken";
-import nodemailer from "nodemailer";
+import { sendEmail } from "../utils/email.js";
 
 const router = express.Router();
 
@@ -33,28 +33,13 @@ router.post("/send-verification", checkAdmin, async (req, res) => {
     const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
     const adminEmail = "kdy20716@gmail.com";
 
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      throw new Error("이메일 설정(EMAIL_USER, EMAIL_PASS)이 누락되었습니다.");
-    }
-
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-
-    const mailOptions = {
-      from: `"PICKPICK Admin" <${process.env.EMAIL_USER}>`,
+    console.log(`📮 관리자 인증 메일 전송 시도 중 (Brevo)... (대상: ${adminEmail})`);
+    await sendEmail({
       to: adminEmail,
       subject: "[PICKPICK] 관리자 페이지 2차 인증 코드",
       text: `관리자 대시보드 접근을 위한 인증 코드는 [ ${tempCode} ] 입니다.\n이 코드를 화면에 입력하여 인증을 완료해주세요.`,
-    };
-
-    console.log(`📮 관리자 인증 메일 전송 시도 중... (대상: ${adminEmail})`);
-    const info = await transporter.sendMail(mailOptions);
-    console.log("✅ 관리자 이메일 발송 성공! 구글 서버 응답:", info.response);
+    });
+    console.log("✅ 관리자 이메일 발송 성공!");
 
     res.status(200).json({
       success: true,
@@ -64,9 +49,8 @@ router.post("/send-verification", checkAdmin, async (req, res) => {
   } catch (error) {
     console.error("❌ 관리자 인증 코드 발송 에러 상세:", error);
     res.status(500).json({ 
-      message: "인증 코드 발송 중 에러가 발생했습니다.",
-      error: error.message,
-      code: error.code
+      message: "인증 코드 발송 중 에러가 발생했습니다. (Brevo)",
+      error: error.message
     });
   }
 });
