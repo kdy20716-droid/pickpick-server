@@ -15,9 +15,10 @@ const app = express();
 
 // CORS 설정
 app.use(cors({
-  origin: "*", 
+  origin: ["https://pickpick.dev", "http://localhost:5173"], 
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
 }));
 
 // JSON 형태로 들어오는 요청을 파싱해서 req.body에 추가
