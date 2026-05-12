@@ -287,13 +287,10 @@ router.post("/send-temp-password", async (req, res) => {
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
+      pool: true,
       auth: {
         user: emailUser,
         pass: emailPass,
-      },
-      // Render 환경 등에서 IPv6 문제 해결을 위해 IPv4 강제
-      lookup: (hostname, options, callback) => {
-        dns.lookup(hostname, { family: 4 }, callback);
       },
     });
 
@@ -365,22 +362,20 @@ router.post("/send-email-code", async (req, res) => {
 
     // 6자리 랜덤 코드 생성
     const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
-const emailUser = process.env.EMAIL_USER;
-const emailPass = process.env.EMAIL_PASS?.replace(/\s/g, ""); // 모든 공백 제거 (중요!)
+    const emailUser = process.env.EMAIL_USER;
+    const emailPass = process.env.EMAIL_PASS?.replace(/\s/g, ""); // 모든 공백 제거 (중요!)
 
-if (!emailUser || !emailPass) {
-  return res.status(500).json({ message: "서버 이메일 설정이 누락되었습니다." });
-}
+    if (!emailUser || !emailPass) {
+      return res.status(500).json({ message: "서버 이메일 설정이 누락되었습니다." });
+    }
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  pool: true, // 연결 유지 사용
-  auth: {
-    user: emailUser,
-    pass: emailPass,
-  },
-});
-      connectionTimeout: 20000,
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      pool: true, // 연결 유지 사용
+      auth: {
+        user: emailUser,
+        pass: emailPass,
+      },
     });
 
     const mailOptions = {
