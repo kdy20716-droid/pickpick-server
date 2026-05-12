@@ -96,37 +96,55 @@ app.get("/test-mail-direct", async (req, res) => {
     return res.status(500).json({ success: false, message: "이메일 설정 누락" });
   }
 
+  const results = {
+    step1_dns: "Pending",
+    step2_connection: "Pending",
+    logs: []
+  };
+
   try {
+    // 1단계: DNS 확인
+    const addresses = await new Promise((resolve, reject) => {
+      dns.resolve4("smtp.gmail.com", (err, addresses) => {
+        if (err) reject(err); else resolve(addresses);
+      });
+    });
+    results.step1_dns = `Success! IP: ${addresses.join(", ")}`;
+
+    // 2단계: 587 포트로 우회 연결 시도
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
+      port: 587,
+      secure: false, // 587 포트는 STARTTLS 사용을 위해 false
       auth: {
         user: emailUser,
-        pass: emailPass, // 공백 포함 원본 그대로 시도
+        pass: emailPass,
       },
-      lookup: (hostname, options, callback) => {
-        dns.lookup(hostname, { family: 4 }, callback);
+      tls: {
+        rejectUnauthorized: false // 보안 인증 무시 (테스트용)
       },
+      connectionTimeout: 20000, // 20초 대기
+      greetingTimeout: 20000,
     });
 
-    console.log("🚀 [Direct Test] 메일 발송 시도 중...");
+    console.log("🚀 [Direct Test] 587 포트 발송 시도...");
     const info = await transporter.sendMail({
       from: `"PICKPICK TEST" <${emailUser}>`,
       to: emailUser,
-      subject: "Render Server Direct Test",
-      text: "서버에서 직접 보낸 테스트 메일입니다.",
+      subject: "Render Server Port 587 Test",
+      text: "587번 포트로 우회하여 보낸 테스트 메일입니다.",
     });
 
-    res.json({ success: true, response: info.response });
+    results.step2_connection = "Success!";
+    res.json({ success: true, results, response: info.response });
   } catch (error) {
     console.error("❌ [Direct Test] 실패:", error);
     res.status(500).json({ 
       success: false, 
-      message: "발송 실패", 
+      results,
       error: error.message,
       code: error.code,
-      command: error.command
+      stack: error.stack
     });
   }
 });

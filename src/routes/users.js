@@ -376,8 +376,8 @@ router.post("/send-email-code", async (req, res) => {
 
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
+      port: 587,
+      secure: false, // 587 포트는 STARTTLS를 위해 false 설정
       auth: {
         user: emailUser,
         pass: emailPass,
@@ -385,6 +385,7 @@ router.post("/send-email-code", async (req, res) => {
       lookup: (hostname, options, callback) => {
         dns.lookup(hostname, { family: 4 }, callback);
       },
+      connectionTimeout: 20000,
     });
 
     const mailOptions = {
