@@ -88,6 +88,9 @@ app.get("/env-check", (req, res) => {
 // 직접 이메일 발송 테스트 엔드포인트
 import nodemailer from "nodemailer";
 import dns from "dns";
+import { promisify } from "util";
+const lookup = promisify(dns.lookup);
+
 app.get("/test-mail-direct", async (req, res) => {
   const emailUser = process.env.EMAIL_USER;
   const emailPass = process.env.EMAIL_PASS?.replace(/\s/g, ""); // 모든 공백 제거
@@ -96,31 +99,99 @@ app.get("/test-mail-direct", async (req, res) => {
     return res.status(500).json({ success: false, message: "이메일 설정 누락" });
   }
 
+  const diagnostics = {
+    dns: null,
+    port465: null,
+    port587: null
+  };
+
+  // 1. DNS Lookup Test
+  console.log("🔍 [Diagnostics] smtp.gmail.com DNS 조회 중...");
   try {
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: emailUser,
-        pass: emailPass,
-      }
-    });
+    const address = await lookup("smtp.gmail.com");
+    diagnostics.dns = { success: true, address: address.address };
+    console.log("✅ [Diagnostics] DNS 조회 성공:", address.address);
+  } catch (dnsError) {
+    diagnostics.dns = { success: false, error: dnsError.message };
+    console.error("❌ [Diagnostics] DNS 조회 실패:", dnsError);
+  }
 
-    console.log("🚀 [Direct Test] 최적화된 구글 서비스 방식 발송 시도...");
-    const info = await transporter.sendMail({
-      from: `"PICKPICK TEST" <${emailUser}>`,
-      to: emailUser,
-      subject: "Final Optimization Test",
-      text: "가장 표준적인 방식으로 보낸 테스트 메일입니다.",
+  // 2. Try Port 465 (SSL)
+  try {
+    console.log("🚀 [Diagnostics] Port 465 (SSL) 시도 중...");
+    const transporter465 = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      auth: { user: emailUser, pass: emailPass },
+      connectionTimeout: 5000,
     });
+    await transporter465.verify();
+    diagnostics.port465 = { success: true };
+    console.log("✅ [Diagnostics] Port 465 연결 성공");
+  } catch (err) {
+    diagnostics.port465 = { success: false, error: err.message, code: err.code };
+    console.error("❌ [Diagnostics] Port 465 연결 실패:", err.message);
+  }
 
-    res.json({ success: true, response: info.response, pass_length: emailPass.length });
+  // 3. Try Port 587 (STARTTLS)
+  try {
+    console.log("🚀 [Diagnostics] Port 587 (STARTTLS) 시도 중...");
+    const transporter587 = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 587,
+      secure: false,
+      auth: { user: emailUser, pass: emailPass },
+      connectionTimeout: 5000,
+    });
+    await transporter587.verify();
+    diagnostics.port587 = { success: true };
+    console.log("✅ [Diagnostics] Port 587 연결 성공");
+  } catch (err) {
+    diagnostics.port587 = { success: false, error: err.message, code: err.code };
+    console.error("❌ [Diagnostics] Port 587 연결 실패:", err.message);
+  }
+
+  // 실제 발송 시도 (성공한 포트 사용)
+  try {
+    let finalTransporter = null;
+    if (diagnostics.port465.success) {
+      finalTransporter = nodemailer.createTransport({
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
+        auth: { user: emailUser, pass: emailPass },
+      });
+    } else if (diagnostics.port587.success) {
+      finalTransporter = nodemailer.createTransport({
+        host: "smtp.gmail.com",
+        port: 587,
+        secure: false,
+        auth: { user: emailUser, pass: emailPass },
+      });
+    }
+
+    if (finalTransporter) {
+      const info = await finalTransporter.sendMail({
+        from: `"PICKPICK TEST" <${emailUser}>`,
+        to: emailUser,
+        subject: "Multi-Port Diagnostics Test",
+        text: `Port 465: ${diagnostics.port465.success ? "OK" : "FAIL"}\nPort 587: ${diagnostics.port587.success ? "OK" : "FAIL"}\nDNS: ${diagnostics.dns.address || "Unknown"}`,
+      });
+      return res.json({ success: true, response: info.response, diagnostics });
+    } else {
+      return res.status(500).json({ 
+        success: false, 
+        message: "모든 포트 연결 실패", 
+        diagnostics 
+      });
+    }
   } catch (error) {
-    console.error("❌ [Direct Test] 최종 실패:", error);
     res.status(500).json({ 
       success: false, 
-      message: "최종 발송 실패", 
+      message: "발송 중 에러 발생", 
       error: error.message,
-      code: error.code
+      diagnostics
     });
   }
 });
