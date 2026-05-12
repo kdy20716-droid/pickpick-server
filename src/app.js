@@ -90,61 +90,37 @@ import nodemailer from "nodemailer";
 import dns from "dns";
 app.get("/test-mail-direct", async (req, res) => {
   const emailUser = process.env.EMAIL_USER;
-  const emailPass = process.env.EMAIL_PASS;
+  const emailPass = process.env.EMAIL_PASS?.replace(/\s/g, ""); // 모든 공백 제거
 
   if (!emailUser || !emailPass) {
     return res.status(500).json({ success: false, message: "이메일 설정 누락" });
   }
 
-  const results = {
-    step1_dns: "Pending",
-    step2_connection: "Pending",
-    logs: []
-  };
-
   try {
-    // 1단계: DNS 확인
-    const addresses = await new Promise((resolve, reject) => {
-      dns.resolve4("smtp.gmail.com", (err, addresses) => {
-        if (err) reject(err); else resolve(addresses);
-      });
-    });
-    results.step1_dns = `Success! IP: ${addresses.join(", ")}`;
-
-    // 2단계: 587 포트로 우회 연결 시도
     const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false, // 587 포트는 STARTTLS 사용을 위해 false
+      service: "gmail",
       auth: {
         user: emailUser,
         pass: emailPass,
-      },
-      tls: {
-        rejectUnauthorized: false // 보안 인증 무시 (테스트용)
-      },
-      connectionTimeout: 20000, // 20초 대기
-      greetingTimeout: 20000,
+      }
     });
 
-    console.log("🚀 [Direct Test] 587 포트 발송 시도...");
+    console.log("🚀 [Direct Test] 최적화된 구글 서비스 방식 발송 시도...");
     const info = await transporter.sendMail({
       from: `"PICKPICK TEST" <${emailUser}>`,
       to: emailUser,
-      subject: "Render Server Port 587 Test",
-      text: "587번 포트로 우회하여 보낸 테스트 메일입니다.",
+      subject: "Final Optimization Test",
+      text: "가장 표준적인 방식으로 보낸 테스트 메일입니다.",
     });
 
-    results.step2_connection = "Success!";
-    res.json({ success: true, results, response: info.response });
+    res.json({ success: true, response: info.response, pass_length: emailPass.length });
   } catch (error) {
-    console.error("❌ [Direct Test] 실패:", error);
+    console.error("❌ [Direct Test] 최종 실패:", error);
     res.status(500).json({ 
       success: false, 
-      results,
+      message: "최종 발송 실패", 
       error: error.message,
-      code: error.code,
-      stack: error.stack
+      code: error.code
     });
   }
 });
