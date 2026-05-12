@@ -71,6 +71,20 @@ app.get("/db-test", async (req, res) => {
   }
 });
 
+// 환경 변수 설정 확인 엔드포인트 (보안 주의)
+app.get("/env-check", (req, res) => {
+  const user = process.env.EMAIL_USER;
+  const pass = process.env.EMAIL_PASS;
+  
+  res.json({
+    email_user: user ? `${user.substring(0, 3)}***` : "MISSING",
+    email_pass_exists: !!pass,
+    email_pass_length: pass ? pass.length : 0,
+    // 비밀번호가 공백 포함 19자인지 확인 (rhia oaek fenc wzso 형태)
+    is_pass_format_correct: pass ? (pass.length === 16 || pass.length === 19) : false
+  });
+});
+
 // 전역 에러 핸들러 (마지막에 위치해야 함)
 app.use((err, req, res, next) => {
   console.error("🔥 [Global Error]:", err);
