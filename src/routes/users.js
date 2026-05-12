@@ -283,19 +283,11 @@ router.post("/send-temp-password", async (req, res) => {
     }
 
     const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
+      service: "gmail",
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
-      // DNS 조회 시 IPv4 주소만 사용하도록 강제
-      lookup: (hostname, options, callback) => {
-        dns.lookup(hostname, { family: 4 }, callback);
-      },
-      connectionTimeout: 20000,
-      greetingTimeout: 20000,
     });
 
     const mailOptions = {
@@ -382,19 +374,11 @@ router.post("/send-email-code", async (req, res) => {
     }
 
     const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
+      service: "gmail",
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
-      // DNS 조회 시 IPv4 주소만 사용하도록 강제
-      lookup: (hostname, options, callback) => {
-        dns.lookup(hostname, { family: 4 }, callback);
-      },
-      connectionTimeout: 20000,
-      greetingTimeout: 20000,
     });
 
     const mailOptions = {
@@ -418,11 +402,7 @@ router.post("/send-email-code", async (req, res) => {
       res.status(500).json({
         message: "이메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.",
         error: emailError.message,
-        code: emailError.code,
-        envCheck: {
-          user: !!process.env.EMAIL_USER,
-          pass: !!process.env.EMAIL_PASS
-        }
+        code: emailError.code
       });
     }
   } catch (error) {

@@ -1,4 +1,4 @@
-// const express = require("express"); // 옛날 문법
+import "dotenv/config";
 import express from "express"; // ES 문법 (자바스크립트 최신문법)
 import cors from "cors";
 import pool from "./db.js";
