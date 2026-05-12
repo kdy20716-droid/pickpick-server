@@ -85,11 +85,13 @@ app.get("/test-mail-direct", async (req, res) => {
 
   const diagnostics = {
     dns: "Pending",
+    internet_check_443: "Pending",
     port465: "Pending",
     port587: "Pending",
-    serviceGmail: "Pending"
+    port2525: "Pending"
   };
 
+  // 1. DNS
   try {
     const address = await lookup("smtp.gmail.com");
     diagnostics.dns = { success: true, address: address.address };
@@ -97,53 +99,32 @@ app.get("/test-mail-direct", async (req, res) => {
     diagnostics.dns = { success: false, error: dnsError.message };
   }
 
-  // 1. Port 465
-  try {
-    const transporter465 = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
-      auth: { user: emailUser, pass: emailPass },
-      connectionTimeout: 10000,
+  // 2. 일반 인터넷 접속 확인 (HTTPS 443)
+  const checkPort = (port, host) => {
+    return new Promise((resolve) => {
+      const socket = new net.Socket();
+      socket.setTimeout(5000);
+      socket.on("connect", () => { socket.destroy(); resolve("OK"); });
+      socket.on("error", (e) => { socket.destroy(); resolve(e.message); });
+      socket.on("timeout", () => { socket.destroy(); resolve("Timeout"); });
+      socket.connect(port, host);
     });
-    await transporter465.verify();
-    diagnostics.port465 = "OK";
-  } catch (err) {
-    diagnostics.port465 = err.message;
-  }
+  };
 
-  // 2. Port 587
-  try {
-    const transporter587 = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false,
-      auth: { user: emailUser, pass: emailPass },
-      connectionTimeout: 10000,
-    });
-    await transporter587.verify();
-    diagnostics.port587 = "OK";
-  } catch (err) {
-    diagnostics.port587 = err.message;
-  }
+  diagnostics.internet_check_443 = await checkPort(443, "google.com");
+  diagnostics.port465 = await checkPort(465, "smtp.gmail.com");
+  diagnostics.port587 = await checkPort(587, "smtp.gmail.com");
+  diagnostics.port2525 = await checkPort(2525, "smtp.gmail.com");
 
-  // 3. Service Gmail
-  try {
-    const transporterService = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: emailUser, pass: emailPass },
-      connectionTimeout: 10000,
-    });
-    await transporterService.verify();
-    diagnostics.serviceGmail = "OK";
-  } catch (err) {
-    diagnostics.serviceGmail = err.message;
+  let advice = "모든 이메일 포트가 Timeout이라면 Render 서버에서 SMTP 발송이 막힌 것입니다.";
+  if (diagnostics.internet_check_443 === "OK" && diagnostics.port465 === "Timeout") {
+    advice += " [진단] 일반 인터넷은 되지만 이메일 포트만 막혀 있습니다. SendGrid 같은 외부 메일 API 사용을 권장합니다.";
   }
 
   res.json({
-    message: "진단 완료",
+    message: "최종 상세 진단 완료",
     diagnostics,
-    advice: "만약 모두 실패한다면 Render 대시보드에서 'Clear Cache and Deploy'를 시도해보세요."
+    advice
   });
 });
 
