@@ -55,7 +55,33 @@ app.use("/api/votes", votesRouter);
 app.use("/main", mainRouter)
 app.use("/admin", adminRouter);
 
+// 헬스체크 엔드포인트 추가 (서버 생존 확인용)
+app.get("/ping", (req, res) => {
+  res.status(200).send("pong");
+});
+
+// 전역 에러 핸들러 (마지막에 위치해야 함)
+app.use((err, req, res, next) => {
+  console.error("🔥 [Global Error]:", err);
+  res.status(500).json({ 
+    message: "서버 내부 에러가 발생했습니다.", 
+    error: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
+});
+
+// 프로세스 종료 방지 및 로그 기록
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("❌ Unhandled Rejection at:", promise, "reason:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("❌ Uncaught Exception:", err);
+  // 치명적인 에러의 경우 로그를 남기고 안전하게 종료하거나 재시작 로직이 필요할 수 있음
+});
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
-  console.log(`${PORT}번 포트번호로 서버 실행중`);
+  console.log(`🚀 서버가 ${PORT}번 포트에서 시작되었습니다.`);
+  console.log(`- 환경 변수 확인: EMAIL_USER=${process.env.EMAIL_USER ? "OK" : "MISSING"}`);
 });
