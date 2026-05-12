@@ -85,6 +85,52 @@ app.get("/env-check", (req, res) => {
   });
 });
 
+// 직접 이메일 발송 테스트 엔드포인트
+import nodemailer from "nodemailer";
+import dns from "dns";
+app.get("/test-mail-direct", async (req, res) => {
+  const emailUser = process.env.EMAIL_USER;
+  const emailPass = process.env.EMAIL_PASS;
+
+  if (!emailUser || !emailPass) {
+    return res.status(500).json({ success: false, message: "이메일 설정 누락" });
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      auth: {
+        user: emailUser,
+        pass: emailPass, // 공백 포함 원본 그대로 시도
+      },
+      lookup: (hostname, options, callback) => {
+        dns.lookup(hostname, { family: 4 }, callback);
+      },
+    });
+
+    console.log("🚀 [Direct Test] 메일 발송 시도 중...");
+    const info = await transporter.sendMail({
+      from: `"PICKPICK TEST" <${emailUser}>`,
+      to: emailUser,
+      subject: "Render Server Direct Test",
+      text: "서버에서 직접 보낸 테스트 메일입니다.",
+    });
+
+    res.json({ success: true, response: info.response });
+  } catch (error) {
+    console.error("❌ [Direct Test] 실패:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "발송 실패", 
+      error: error.message,
+      code: error.code,
+      command: error.command
+    });
+  }
+});
+
 // 전역 에러 핸들러 (마지막에 위치해야 함)
 app.use((err, req, res, next) => {
   console.error("🔥 [Global Error]:", err);
