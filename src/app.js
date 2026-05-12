@@ -94,7 +94,8 @@ app.get("/test-mail-direct", async (req, res) => {
   const diagnostics = {
     dns: null,
     port465: null,
-    port587: null
+    port587: null,
+    serviceGmail: null
   };
 
   try {
@@ -104,13 +105,17 @@ app.get("/test-mail-direct", async (req, res) => {
     diagnostics.dns = { success: false, error: dnsError.message };
   }
 
+  // 1. Try Port 465 (SSL) with longer timeout
   try {
+    console.log("🚀 [Diagnostics] Port 465 (SSL) 시도 중 (30s)...");
     const transporter465 = nodemailer.createTransport({
       host: "smtp.gmail.com",
       port: 465,
       secure: true,
       auth: { user: emailUser, pass: emailPass },
-      connectionTimeout: 5000,
+      connectionTimeout: 30000, // 30초로 대폭 연장
+      greetingTimeout: 30000,
+      socketTimeout: 30000,
     });
     await transporter465.verify();
     diagnostics.port465 = { success: true };
@@ -118,13 +123,17 @@ app.get("/test-mail-direct", async (req, res) => {
     diagnostics.port465 = { success: false, error: err.message, code: err.code };
   }
 
+  // 2. Try Port 587 (STARTTLS) with longer timeout
   try {
+    console.log("🚀 [Diagnostics] Port 587 (STARTTLS) 시도 중 (30s)...");
     const transporter587 = nodemailer.createTransport({
       host: "smtp.gmail.com",
       port: 587,
       secure: false,
       auth: { user: emailUser, pass: emailPass },
-      connectionTimeout: 5000,
+      connectionTimeout: 30000,
+      greetingTimeout: 30000,
+      socketTimeout: 30000,
     });
     await transporter587.verify();
     diagnostics.port587 = { success: true };
@@ -132,9 +141,28 @@ app.get("/test-mail-direct", async (req, res) => {
     diagnostics.port587 = { success: false, error: err.message, code: err.code };
   }
 
+  // 3. Try 'service: gmail' shortcut
+  try {
+    console.log("🚀 [Diagnostics] Service: gmail 시도 중...");
+    const transporterService = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: emailUser, pass: emailPass },
+      connectionTimeout: 30000,
+    });
+    await transporterService.verify();
+    diagnostics.serviceGmail = { success: true };
+  } catch (err) {
+    diagnostics.serviceGmail = { success: false, error: err.message, code: err.code };
+  }
+
   try {
     let finalTransporter = null;
-    if (diagnostics.port465.success) {
+    if (diagnostics.serviceGmail.success) {
+      finalTransporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: { user: emailUser, pass: emailPass },
+      });
+    } else if (diagnostics.port465.success) {
       finalTransporter = nodemailer.createTransport({
         host: "smtp.gmail.com",
         port: 465,
@@ -154,15 +182,15 @@ app.get("/test-mail-direct", async (req, res) => {
       const info = await finalTransporter.sendMail({
         from: `"PICKPICK TEST" <${emailUser}>`,
         to: emailUser,
-        subject: "Multi-Port Diagnostics Test",
-        text: `Port 465: ${diagnostics.port465.success ? "OK" : "FAIL"}\nPort 587: ${diagnostics.port587.success ? "OK" : "FAIL"}\nDNS: ${diagnostics.dns.address || "Unknown"}`,
+        subject: "Extended Timeout Diagnostics Test",
+        text: `Port 465: ${diagnostics.port465.success ? "OK" : "FAIL"}\nPort 587: ${diagnostics.port587.success ? "OK" : "FAIL"}\nService Gmail: ${diagnostics.serviceGmail.success ? "OK" : "FAIL"}`,
       });
       return res.json({ success: true, response: info.response, diagnostics });
     } else {
-      return res.status(500).json({ success: false, message: "모든 포트 연결 실패", diagnostics });
+      return res.status(500).json({ success: false, message: "모든 시도 실패 (타임아웃 발생)", diagnostics });
     }
   } catch (error) {
-    res.status(500).json({ success: false, message: "발송 중 에러 발생", error: error.message, diagnostics });
+    res.status(500).json({ success: false, message: "최종 발송 중 에러", error: error.message, diagnostics });
   }
 });
 
