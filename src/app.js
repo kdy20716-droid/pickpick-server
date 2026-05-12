@@ -60,6 +60,17 @@ app.get("/ping", (req, res) => {
   res.status(200).send("pong");
 });
 
+// DB 연결 테스트 엔드포인트 추가
+app.get("/db-test", async (req, res) => {
+  try {
+    const [result] = await pool.query("SELECT 1 + 1 AS result");
+    res.status(200).json({ success: true, message: "DB 연결 성공!", result });
+  } catch (error) {
+    console.error("❌ DB 연결 테스트 실패:", error);
+    res.status(500).json({ success: false, message: "DB 연결 실패", error: error.message });
+  }
+});
+
 // 전역 에러 핸들러 (마지막에 위치해야 함)
 app.use((err, req, res, next) => {
   console.error("🔥 [Global Error]:", err);

@@ -349,11 +349,21 @@ router.post("/send-email-code", async (req, res) => {
 
   try {
     // 🔍 이메일 중복 체크 (최우선)
-    console.log("🔍 이메일 중복 체크:", email);
-    const [existingEmail] = await pool.query(
-      "SELECT * FROM users WHERE email = ?",
-      [email],
-    );
+    console.log("🔍 이메일 중복 체크 시작:", email);
+    let existingEmail;
+    try {
+      const [rows] = await pool.query(
+        "SELECT * FROM users WHERE email = ?",
+        [email],
+      );
+      existingEmail = rows;
+    } catch (dbError) {
+      console.error("❌ DB 조회 중 에러 발생:", dbError);
+      return res.status(500).json({
+        message: "데이터베이스 조회 중 오류가 발생했습니다. DB 설정을 확인해주세요.",
+        error: dbError.message
+      });
+    }
 
     if (existingEmail.length > 0) {
       console.log("❌ 이미 가입된 이메일 중단:", email);
@@ -375,7 +385,10 @@ router.post("/send-email-code", async (req, res) => {
 
     if (!emailUser || !emailPass) {
       console.error("❌ 서버 환경변수 누락: EMAIL_USER 또는 EMAIL_PASS가 없습니다.");
-      return res.status(500).json({ message: "서버의 이메일 설정이 누락되었습니다." });
+      return res.status(500).json({ 
+        message: "서버의 이메일 설정(환경변수)이 누락되었습니다. Render 설정을 확인해주세요.",
+        envCheck: { user: !!emailUser, pass: !!emailPass }
+      });
     }
 
     console.log("🛠 Nodemailer 트랜스포터 생성 중...");
@@ -385,7 +398,7 @@ router.post("/send-email-code", async (req, res) => {
         user: emailUser,
         pass: emailPass,
       },
-      connectionTimeout: 10000, // 10초 타임아웃 추가
+      connectionTimeout: 10000, 
       greetingTimeout: 10000,
       socketTimeout: 10000,
     });
@@ -400,13 +413,7 @@ router.post("/send-email-code", async (req, res) => {
     try {
       console.log(`📮 [${email}]로 이메일 전송 시도 시작 (tempCode: ${tempCode})...`);
       
-      // 전송 시도에 타임아웃 적용 (Promise.race 사용)
-      const sendMailPromise = transporter.sendMail(mailOptions);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Email Send Timeout (30s)")), 30000)
-      );
-
-      const info = await Promise.race([sendMailPromise, timeoutPromise]);
+      const info = await transporter.sendMail(mailOptions);
       console.log("✅ 이메일 발송 성공! 응답:", info.response);
 
       res.status(200).json({
@@ -414,17 +421,17 @@ router.post("/send-email-code", async (req, res) => {
         code: tempCode,
       });
     } catch (emailError) {
-      console.error("❌ 이메일 전송 단계 에러 발생:", emailError.message);
+      console.error("❌ 이메일 전송 단계 에러 발생:", emailError);
       res.status(500).json({
-        message: "이메일 서버와의 통신 중 오류가 발생했습니다.",
+        message: "Gmail 서버를 통한 메일 발송에 실패했습니다. 앱 비밀번호를 확인해주세요.",
         error: emailError.message,
         code: emailError.code
       });
     }
   } catch (error) {
-    console.error("❌ 서버 에러:", error.message);
+    console.error("❌ 예상치 못한 서버 에러:", error);
     res.status(500).json({
-      message: "서버 에러가 발생했습니다.",
+      message: "서버에서 알 수 없는 오류가 발생했습니다.",
       error: error.message
     });
   }
