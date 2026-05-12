@@ -2,9 +2,9 @@ import express from "express";
 import pool from "../db.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import nodemailer from "nodemailer";
 import multer from "multer";
 import { uploadToCloudinary } from "../utils/cloudinary.js";
+import { sendEmail } from "../utils/email.js";
 
 const router = express.Router();
 
@@ -276,30 +276,22 @@ router.post("/send-temp-password", async (req, res) => {
     // 2. 6자리 랜덤 코드 생성
     const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // 3. 이메일 전송 설정
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-
-    const mailOptions = {
-      from: `"PICKPICK" <support@pickpick.dev>`,
+    // 3. 이메일 전송 (Brevo)
+    console.log(`📮 [${email}]로 임시 비밀번호 전송 시도 중 (Brevo)...`);
+    await sendEmail({
       to: email,
       subject: "[PICKPICK] 비밀번호 찾기 인증 코드 발송",
       text: `요청하신 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 화면에 입력하여 비밀번호를 변경해주세요.`,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log("✅ 이메일 발송 성공! 구글 서버 응답:", info.response);
+    });
+    console.log("✅ 임시 비밀번호 발송 성공!");
     
-    // 프론트엔드에서 코드를 확인할 수 있도록 응답에 포함시킴
     res.status(200).json({ message: "인증 코드가 발송되었습니다.", code: tempCode });
   } catch (error) {
-    console.error("❌ 이메일 발송 에러:", error);
-    res.status(500).json({ message: "이메일 발송에 실패했습니다." });
+    console.error("❌ 임시 비밀번호 발송 에러:", error);
+    res.status(500).json({ 
+      message: "이메일 발송에 실패했습니다. (Brevo)", 
+      error: error.message 
+    });
   }
 });
 
@@ -333,67 +325,47 @@ router.post("/send-email-code", async (req, res) => {
   console.log("📧 이메일 코드 발송 요청:", email);
 
   if (!email) {
-    console.log("❌ 이메일 미입력");
     return res.status(400).json({ message: "이메일을 입력해주세요." });
   }
 
   try {
-    // 🔍 이메일 중복 체크 (최우선)
-    console.log("🔍 이메일 중복 체크:", email);
-    const [existingEmail] = await pool.query(
-      "SELECT * FROM users WHERE email = ?",
-      [email],
-    );
+    // 🔍 이메일 중복 체크
+    console.log("🔍 이메일 중복 체크 시작:", email);
+    const [existingEmail] = await pool.query("SELECT * FROM users WHERE email = ?", [email]);
 
     if (existingEmail.length > 0) {
-      console.log("❌ 이미 가입된 이메일:", email);
       return res.status(409).json({
-        message: "이 이메일은 이미 회원가입되었습니다.",
+        message: "이미 회원가입된 이메일입니다. 다른 이메일을 사용하거나 비밀번호 찾기를 이용해주세요.",
+        isDuplicate: true
       });
     }
 
-    console.log("✅ 새로운 이메일입니다:", email);
-
     // 6자리 랜덤 코드 생성
     const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
-    console.log("📝 생성된 인증코드:", tempCode);
-
-    // 이메일 전송 설정
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-
-    const mailOptions = {
-      from: `"PICKPICK" <support@pickpick.dev>`,
-      to: email,
-      subject: "[PICKPICK] 이메일 인증 코드 발송",
-      text: `요청하신 이메일 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 회원가입 화면에 입력해주세요.`,
-    };
 
     try {
-      console.log("📮 Gmail 서버로 이메일 전송 중...");
-      const info = await transporter.sendMail(mailOptions);
-      console.log("✅ 이메일 발송 성공! 구글 서버 응답:", info.response);
+      console.log(`📮 [${email}]로 인증 코드 전송 시도 (Brevo)...`);
+      await sendEmail({
+        to: email,
+        subject: "[PICKPICK] 이메일 인증 코드 발송",
+        text: `요청하신 이메일 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 회원가입 화면에 입력해주세요.`,
+      });
+      console.log("✅ 인증 코드 발송 성공!");
 
       res.status(200).json({
         message: "인증 코드가 발송되었습니다.",
         code: tempCode,
       });
     } catch (emailError) {
-      console.error("❌ 이메일 발송 에러:", emailError.message);
+      console.error("❌ 이메일 전송 에러 (Brevo):", emailError);
       res.status(500).json({
-        message: "이메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.",
+        message: "이메일 서버 전송 실패. (Brevo)",
+        error: emailError.message
       });
     }
   } catch (error) {
-    console.error("❌ 서버 에러:", error.message);
-    res.status(500).json({
-      message: "서버 에러가 발생했습니다.",
-    });
+    console.error("❌ 서버 에러:", error);
+    res.status(500).json({ message: "서버 오류가 발생했습니다.", error: error.message });
   }
 });
 
