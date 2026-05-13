@@ -4,6 +4,7 @@ import express from "express"; // ES 문법 (자바스크립트 최신문법)
 import cors from "cors";
 import pool from "./db.js";
 import path from "path";
+import fs from "fs";
 
 import { sendEmail } from "./utils/email.js";
 
@@ -21,7 +22,7 @@ console.log("🚀 [System] 서버 초기화 시작...");
 // CORS 설정
 app.use(
   cors({
-    origin: ["https://pickpick.dev", "http://localhost:5173"],
+    origin: ["https://pickpick.dev", "http://localhost:5173", "http://localhost:5174"],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
@@ -73,6 +74,14 @@ initializeDatabase();
 const __dirname = path.resolve();
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+const clientDistPath = path.resolve(__dirname, "../pickpick-client/dist");
+const clientIndexPath = path.join(clientDistPath, "index.html");
+const hasClientBuild = fs.existsSync(clientIndexPath);
+
+if (hasClientBuild) {
+  app.use(express.static(clientDistPath));
+}
+
 app.use("/users", usersRouter);
 app.use("/votelist", voteListRouter);
 app.use("/api/votes", votesRouter);
@@ -121,6 +130,16 @@ app.get("/test-mail-direct", async (req, res) => {
     });
   }
 });
+
+if (hasClientBuild) {
+  app.get("*", (req, res, next) => {
+    if (!req.accepts("html")) {
+      return next();
+    }
+
+    return res.sendFile(clientIndexPath);
+  });
+}
 
 app.use((err, req, res, next) => {
   console.error("🔥 [Global Error]:", err);
