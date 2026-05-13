@@ -24,7 +24,7 @@ router.get("/", async (req, res) => {
     `;
 
     if (user_id) {
-      selectClause += `, vr.selected_side AS user_voted_side`;
+      selectClause += `, vr.selected_side AS user_voted_side, (l_user.id IS NOT NULL) AS user_liked`;
     }
 
     // 보안 및 로직 체크: 특정 필터링이 필요하지만 유저 ID가 없는 경우 빈 결과 반환
@@ -41,6 +41,10 @@ router.get("/", async (req, res) => {
       } else {
         query += ` LEFT JOIN vote_records vr ON p.id = vr.post_id AND vr.user_id = ?`;
       }
+      params.push(user_id);
+
+      // 현재 유저의 좋아요 여부를 확인하기 위한 JOIN
+      query += ` LEFT JOIN likes l_user ON p.id = l_user.post_id AND l_user.user_id = ?`;
       params.push(user_id);
     }
 
