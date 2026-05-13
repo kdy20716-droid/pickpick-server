@@ -1,6 +1,7 @@
 import "dotenv/config";
 // const express = require("express"); // 옛날 문법
 import express from "express"; // ES 문법 (자바스크립트 최신문법)
+import cors from "cors";
 import pool from "./db.js";
 import path from "path";
 
@@ -12,6 +13,18 @@ import mainRouter from "./routes/mainLogic.js";
 import adminRouter from "./routes/admin.js";
 
 const app = express();
+
+// CORS 설정
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
+
+// JSON 형태로 들어오는 요청을 파싱해서 req.body에 추가
+app.use(express.json());
 
 // DB 마이그레이션: 필요한 컬럼 추가
 async function initializeDatabase() {

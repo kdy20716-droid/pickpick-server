@@ -296,13 +296,22 @@ router.post("/send-temp-password", async (req, res) => {
     const tempPassword = Math.random().toString(36).slice(2, 10);
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
-    // 이메일 전송 설정
+    // 3. 이메일 전송 설정
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      throw new Error("이메일 설정(EMAIL_USER, EMAIL_PASS)이 누락되었습니다.");
+    }
+
     const transporter = nodemailer.createTransport({
-      service: "gmail",
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
+      family: 4, // IPv4 강제 설정
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
     });
 
     const mailOptions = {
@@ -312,6 +321,7 @@ router.post("/send-temp-password", async (req, res) => {
       text: `요청하신 임시 비밀번호는 [ ${tempPassword} ] 입니다.\n로그인 후 비밀번호를 변경해주세요.`,
     };
 
+    console.log(`📮 [${email}]로 임시 비밀번호 전송 시도 중...`);
     const info = await transporter.sendMail(mailOptions);
     await pool.query("UPDATE users SET password = ? WHERE email = ?", [
       hashedPassword,
@@ -389,12 +399,21 @@ router.post("/send-email-code", async (req, res) => {
     console.log("📝 생성된 인증코드:", tempCode);
 
     // 이메일 전송 설정
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      throw new Error("이메일 설정(EMAIL_USER, EMAIL_PASS)이 누락되었습니다.");
+    }
+
     const transporter = nodemailer.createTransport({
-      service: "gmail",
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
+      family: 4, // IPv4 강제 설정
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
     });
 
     const mailOptions = {
@@ -417,12 +436,18 @@ router.post("/send-email-code", async (req, res) => {
       console.error("❌ 이메일 발송 에러:", emailError.message);
       res.status(500).json({
         message: "이메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.",
+        error: emailError.message,
+        envCheck: {
+          user: !!process.env.EMAIL_USER,
+          pass: !!process.env.EMAIL_PASS,
+        },
       });
     }
   } catch (error) {
     console.error("❌ 서버 에러:", error.message);
     res.status(500).json({
       message: "서버 에러가 발생했습니다.",
+      error: error.message,
     });
   }
 });

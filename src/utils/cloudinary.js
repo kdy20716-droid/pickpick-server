@@ -1,4 +1,3 @@
-import { v2 as cloudinary } from 'cloudinary';
 import "dotenv/config";
 import crypto from "crypto";
 import fs from "fs/promises";
@@ -9,14 +8,6 @@ const hasCloudinaryConfig = Boolean(
     process.env.CLOUDINARY_API_KEY &&
     process.env.CLOUDINARY_API_SECRET,
 );
-
-if (hasCloudinaryConfig) {
-  cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-  });
-}
 
 const createSafeFilename = (filename = "upload") => {
   const extension = path.extname(filename).toLowerCase() || ".png";
@@ -33,10 +24,17 @@ const saveToLocalUploads = async (buffer, filename) => {
   return savedFilename;
 };
 
-export const uploadToCloudinary = (buffer, filename) => {
+export const uploadToCloudinary = async (buffer, filename) => {
   if (!hasCloudinaryConfig) {
     return saveToLocalUploads(buffer, filename);
   }
+
+  const { v2: cloudinary } = await import("cloudinary");
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
 
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
@@ -47,7 +45,7 @@ export const uploadToCloudinary = (buffer, filename) => {
           return reject(new Error("Cloudinary upload did not return a URL"));
         }
         resolve(result.secure_url);
-      }
+      },
     );
     uploadStream.end(buffer);
   });
