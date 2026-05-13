@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import pool from "./db.js";
 import path from "path";
+import fs from "fs";
 import dns from "dns";
 import { promisify } from "util";
 
@@ -56,6 +57,14 @@ initializeDatabase();
 const __dirname = path.resolve();
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+const clientDistPath = path.resolve(__dirname, "../pickpick-client/dist");
+const clientIndexPath = path.join(clientDistPath, "index.html");
+const hasClientBuild = fs.existsSync(clientIndexPath);
+
+if (hasClientBuild) {
+  app.use(express.static(clientDistPath));
+}
+
 app.use("/users", usersRouter);
 app.use("/votelist", voteListRouter);
 app.use("/api/votes", votesRouter);
@@ -104,6 +113,16 @@ app.get("/test-mail-direct", async (req, res) => {
     });
   }
 });
+
+if (hasClientBuild) {
+  app.get("*", (req, res, next) => {
+    if (!req.accepts("html")) {
+      return next();
+    }
+
+    return res.sendFile(clientIndexPath);
+  });
+}
 
 app.use((err, req, res, next) => {
   console.error("🔥 [Global Error]:", err);

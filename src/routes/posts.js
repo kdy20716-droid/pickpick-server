@@ -12,7 +12,16 @@ const upload = multer({ storage: storage });
 // 1. 투표 게시글 목록 조회 API (검색, 카테고리, 정렬 포함) http://localhost:4000/votelist
 router.get("/", async (req, res) => {
   try {
-    const { keyword, category, sort, user_id, only_voted, only_liked, author_id } = req.query;
+    const {
+      keyword,
+      category,
+      sort,
+      user_id,
+      only_voted,
+      only_liked,
+      author_id,
+      pinned_post_id,
+    } = req.query;
     let params = [];
 
     // 1. SELECT 절 구성: 좋아요/댓글 수는 독립된 서브쿼리로 가져와 데이터 중복 방지
@@ -72,6 +81,11 @@ router.get("/", async (req, res) => {
 
     // 4. ORDER BY 절 구성
     let orderClauses = [];
+
+    if (pinned_post_id) {
+      orderClauses.push("(p.id = ?) DESC");
+      params.push(pinned_post_id);
+    }
     
     // 로그인 시 투표하지 않은 게시글 우선 (NULL 우선 정렬)
     if (user_id) {
