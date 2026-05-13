@@ -88,7 +88,7 @@ app.get("/test-mail-direct", async (req, res) => {
     const result = await sendEmail({
       to: emailUser,
       subject: "[PICKPICK] Brevo API 전환 테스트",
-      text: "Gmail SMTP 대신 Brevo API를 사용하여 전송된 메일입니다. 이제 Render 서버에서도 안정적으로 발송됩니다."
+      text: "Gmail SMTP 대신 Brevo API를 사용하여 전송된 메일입니다. 이제 DigitalOcean 서버에서도 안정적으로 발송됩니다."
     });
 
     res.json({
