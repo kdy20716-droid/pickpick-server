@@ -2,6 +2,7 @@ import express from "express";
 import pool from "../db.js"; // DB 연결 가져오기
 import multer from "multer";
 import { uploadToCloudinary } from "../utils/cloudinary.js";
+import { updateGrade } from "../utils/grade.js";
 
 const router = express.Router();
 
@@ -12,17 +13,40 @@ const upload = multer({ storage: storage });
 // 1. 투표 게시글 목록 조회 API (검색, 카테고리, 정렬 포함) http://localhost:4000/votelist
 router.get("/", async (req, res) => {
   try {
-    // [추가] 만료된 투표 결과 집계 (winner_side 설정)
-    // 1일이 지난 투표 중 아직 winner_side가 결정되지 않은 게시글들을 찾아 업데이트
-    await pool.query(`
-      UPDATE vote_posts 
-      SET winner_side = CASE 
-        WHEN candidate_a_count > candidate_b_count THEN 'A'
-        WHEN candidate_b_count > candidate_a_count THEN 'B'
-        ELSE 'DRAW'
-      END
-      WHERE expires_at <= NOW() AND winner_side IS NULL
-    `);
+    // [추가] 만료된 투표 결과 집계 및 사용자 우승 횟수 업데이트
+    const [expiredPosts] = await pool.query(
+      "SELECT id, candidate_a_count, candidate_b_count FROM vote_posts WHERE expires_at <= NOW() AND winner_side IS NULL"
+    );
+
+    for (const post of expiredPosts) {
+      const { id: postId, candidate_a_count, candidate_b_count } = post;
+      let winnerSide = "DRAW";
+      if (candidate_a_count > candidate_b_count) winnerSide = "A";
+      else if (candidate_b_count > candidate_a_count) winnerSide = "B";
+
+      if (winnerSide !== "DRAW") {
+        // 우승 진영에 투표한 사용자들의 우승 횟수 증가
+        const [voters] = await pool.query(
+          "SELECT user_id FROM vote_records WHERE post_id = ? AND selected_side = ?",
+          [postId, winnerSide]
+        );
+
+        for (const voter of voters) {
+          await pool.query(
+            "UPDATE users SET vote_win_count = vote_win_count + 1 WHERE id = ?",
+            [voter.user_id]
+          );
+          // 등급 업데이트 확인 (비동기)
+          updateGrade(voter.user_id);
+        }
+      }
+
+      // 게시글에 우승 진영 기록
+      await pool.query(
+        "UPDATE vote_posts SET winner_side = ? WHERE id = ?",
+        [winnerSide, postId]
+      );
+    }
 
     const {
       keyword,
@@ -220,6 +244,13 @@ router.post(
 
       const [result] = await pool.execute(query, values);
 
+      // 사용자 게시글 생성 횟수 증가 및 등급 업데이트
+      await pool.query(
+        "UPDATE users SET post_creation_count = post_creation_count + 1 WHERE id = ?",
+        [author_id]
+      );
+      updateGrade(author_id);
+
       res.status(201).json({
         success: true,
         message: "투표 게시글이 성공적으로 생성되었습니다!",
@@ -397,6 +428,11 @@ router.get("/init-db", async (req, res) => {
 
     // name 컬럼 추가 시도
     try { await pool.query("ALTER TABLE users ADD COLUMN name VARCHAR(50)"); } catch (e) {}
+    // 통계 및 등급 컬럼 추가 시도
+    try { await pool.query("ALTER TABLE users ADD COLUMN vote_participation_count INT DEFAULT 0"); } catch (e) {}
+    try { await pool.query("ALTER TABLE users ADD COLUMN post_creation_count INT DEFAULT 0"); } catch (e) {}
+    try { await pool.query("ALTER TABLE users ADD COLUMN vote_win_count INT DEFAULT 0"); } catch (e) {}
+    try { await pool.query("ALTER TABLE users ADD COLUMN grade VARCHAR(20) DEFAULT 'UnRanked'"); } catch (e) {}
 
     // 3. 투표 게시글 테이블
     await pool.query(`

@@ -234,6 +234,10 @@ router.post("/login", async (req, res) => {
       nationality: user.nationality,
       profile_image: user.profile_image,
       role: user.role || "user",
+      grade: user.grade || "UnRanked",
+      vote_participation_count: user.vote_participation_count || 0,
+      post_creation_count: user.post_creation_count || 0,
+      vote_win_count: user.vote_win_count || 0,
       created_at: user.created_at,
     };
 
