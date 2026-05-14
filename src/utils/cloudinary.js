@@ -19,3 +19,20 @@ export const uploadToCloudinary = (buffer, filename) => {
     uploadStream.end(buffer);
   });
 };
+
+export const deleteFromCloudinary = async (imageUrl) => {
+  if (!imageUrl || !imageUrl.includes("cloudinary.com")) return;
+
+  try {
+    // URL에서 public_id 추출
+    // 예: https://res.cloudinary.com/cloud_name/image/upload/v12345678/pickpick/abcdefg.jpg
+    const parts = imageUrl.split("/");
+    const filename = parts[parts.length - 1]; // abcdefg.jpg
+    const publicIdWithExtension = parts.slice(parts.indexOf("pickpick")).join("/"); // pickpick/abcdefg.jpg
+    const publicId = publicIdWithExtension.split(".")[0]; // pickpick/abcdefg
+
+    await cloudinary.uploader.destroy(publicId);
+  } catch (error) {
+    console.error("Cloudinary 삭제 에러:", error);
+  }
+};

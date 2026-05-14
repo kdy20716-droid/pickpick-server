@@ -1,7 +1,7 @@
 import express from "express";
 import pool from "../db.js"; // DB 연결 가져오기
 import multer from "multer";
-import { uploadToCloudinary } from "../utils/cloudinary.js";
+import { uploadToCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
 
 const router = express.Router();
 
@@ -230,9 +230,9 @@ router.delete("/:postId", async (req, res) => {
   const { user_id } = req.body; // 보안을 위해 요청 본문에서 user_id를 받음
 
   try {
-    // 먼저 작성자 확인
+    // 1. 게시글 정보 조회 (작성자 확인 및 이미지 URL 확보)
     const [posts] = await pool.query(
-      "SELECT author_id FROM vote_posts WHERE id = ?",
+      "SELECT author_id, candidate_a_image, candidate_b_image FROM vote_posts WHERE id = ?",
       [postId],
     );
 
@@ -242,14 +242,26 @@ router.delete("/:postId", async (req, res) => {
         .json({ success: false, message: "게시글을 찾을 수 없습니다." });
     }
 
-    if (posts[0].author_id.toString() !== user_id.toString()) {
+    const post = posts[0];
+
+    // 2. 작성자 권한 확인
+    if (post.author_id.toString() !== user_id.toString()) {
       return res
         .status(403)
         .json({ success: false, message: "삭제 권한이 없습니다." });
     }
 
+    // 3. Cloudinary에서 이미지 삭제
+    if (post.candidate_a_image) {
+      await deleteFromCloudinary(post.candidate_a_image);
+    }
+    if (post.candidate_b_image) {
+      await deleteFromCloudinary(post.candidate_b_image);
+    }
+
+    // 4. DB에서 게시글 삭제
     await pool.query("DELETE FROM vote_posts WHERE id = ?", [postId]);
-    res.json({ success: true, message: "게시글이 삭제되었습니다." });
+    res.json({ success: true, message: "게시글과 이미지가 성공적으로 삭제되었습니다." });
   } catch (error) {
     console.error("게시글 삭제 에러:", error);
     res.status(500).json({ success: false, message: "서버 오류가 발생했습니다." });
@@ -310,13 +322,22 @@ router.put(
 
       // 이미지 처리
       if (req.files) {
+        // 기존 이미지 정보 조회 (삭제를 위함)
+        const [oldPost] = await pool.query("SELECT candidate_a_image, candidate_b_image FROM vote_posts WHERE id = ?", [postId]);
+
         if (req.files["candidate_a_image"]) {
+          if (oldPost.length > 0 && oldPost[0].candidate_a_image) {
+            await deleteFromCloudinary(oldPost[0].candidate_a_image);
+          }
           const file = req.files["candidate_a_image"][0];
           const candidate_a_image = await uploadToCloudinary(file.buffer, file.originalname);
           updateFields.push("candidate_a_image = ?");
           values.push(candidate_a_image);
         }
         if (req.files["candidate_b_image"]) {
+          if (oldPost.length > 0 && oldPost[0].candidate_b_image) {
+            await deleteFromCloudinary(oldPost[0].candidate_b_image);
+          }
           const file = req.files["candidate_b_image"][0];
           const candidate_b_image = await uploadToCloudinary(file.buffer, file.originalname);
           updateFields.push("candidate_b_image = ?");
