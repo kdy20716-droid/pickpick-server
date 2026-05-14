@@ -629,13 +629,11 @@ router.get("/init-db", async (req, res) => {
     });
   } catch (error) {
     console.error("DB 초기화 에러:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "DB 초기화 실패",
-        error: error.message,
-      });
+    res.status(500).json({
+      success: false,
+      message: "DB 초기화 실패",
+      error: error.message,
+    });
   }
 });
 
