@@ -3,7 +3,7 @@ import pool from "../db.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import multer from "multer";
-import { uploadToCloudinary } from "../utils/cloudinary.js";
+import { uploadToCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
 import { sendEmail } from "../utils/email.js";
 
 const router = express.Router();
@@ -22,15 +22,25 @@ router.put("/profile/:userId", upload.any(), async (req, res) => {
     const { name, email, birth, gender, nationality, remove_profile_image } =
       req.body;
 
-    if (remove_profile_image === "true") {
-      console.log("Removing profile image");
-    }
     let profile_image = null;
+    const uploadedFile = req.file || req.files?.[0];
+    const shouldRemoveProfileImage = remove_profile_image === "true";
 
-    if (req.files && req.files.length > 0) {
-      // Cloudinary에 파일 업로드
-      const file = req.files[0];
-      profile_image = await uploadToCloudinary(file.buffer, file.originalname);
+    if (uploadedFile || shouldRemoveProfileImage) {
+      const [oldUsers] = await pool.query(
+        "SELECT profile_image FROM users WHERE id = ?",
+        [userId],
+      );
+      if (oldUsers.length > 0 && oldUsers[0].profile_image) {
+        await deleteFromCloudinary(oldUsers[0].profile_image);
+      }
+    }
+
+    if (uploadedFile) {
+      profile_image = await uploadToCloudinary(
+        uploadedFile.buffer,
+        uploadedFile.originalname,
+      );
     }
 
     // 업데이트할 필드들을 동적으로 구성
@@ -60,8 +70,7 @@ router.put("/profile/:userId", upload.any(), async (req, res) => {
     if (profile_image) {
       updateFields.push("profile_image = ?");
       params.push(profile_image);
-    }
-    if (remove_profile_image === "true") {
+    } else if (shouldRemoveProfileImage) {
       updateFields.push("profile_image = NULL");
     }
 
@@ -464,20 +473,30 @@ router.delete("/account/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // DB에서 사용자 삭제 (ON DELETE CASCADE로 인해 연관된 데이터도 함께 삭제됨)
-    const [result] = await pool.query("DELETE FROM users WHERE id = ?", [
-      userId,
-    ]);
+    // 1. 사용자 정보(프로필 이미지) 조회
+    const [users] = await pool.query(
+      "SELECT profile_image FROM users WHERE id = ?",
+      [userId],
+    );
 
-    if (result.affectedRows === 0) {
+    if (users.length === 0) {
       return res
         .status(404)
         .json({ success: false, message: "사용자를 찾을 수 없습니다." });
     }
 
-    res
-      .status(200)
-      .json({ success: true, message: "회원 탈퇴가 완료되었습니다." });
+    // 2. Cloudinary에서 프로필 이미지 삭제
+    if (users[0].profile_image) {
+      await deleteFromCloudinary(users[0].profile_image);
+    }
+
+    // 3. DB에서 사용자 삭제 (ON DELETE CASCADE로 인해 연관된 데이터도 함께 삭제됨)
+    await pool.query("DELETE FROM users WHERE id = ?", [userId]);
+
+    res.status(200).json({
+      success: true,
+      message: "회원 탈퇴와 이미지가 정상적으로 처리되었습니다.",
+    });
   } catch (error) {
     console.error("회원 탈퇴 에러:", error);
     res

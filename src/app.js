@@ -23,7 +23,7 @@ console.log("🚀 [System] 서버 초기화 시작...");
 app.use(
   cors({
     origin: ["https://pickpick.dev", "http://localhost:5173", "http://localhost:5174"],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   }),

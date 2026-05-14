@@ -2,6 +2,7 @@ import express from "express";
 import pool from "../db.js";
 import jwt from "jsonwebtoken";
 import { sendEmail } from "../utils/email.js";
+import { deleteFromCloudinary } from "../utils/cloudinary.js";
 
 const router = express.Router();
 
@@ -114,18 +115,35 @@ router.delete("/votes/:voteId", checkAdmin, async (req, res) => {
   try {
     const { voteId } = req.params;
 
+    // 1. 삭제할 투표의 이미지 URL 조회
+    const [votes] = await pool.query(
+      "SELECT candidate_a_image, candidate_b_image FROM vote_posts WHERE id = ?",
+      [voteId]
+    );
+
+    if (votes.length === 0) {
+      return res.status(404).json({ message: "투표를 찾을 수 없습니다." });
+    }
+
+    const vote = votes[0];
+
+    // 2. Cloudinary에서 이미지 삭제
+    if (vote.candidate_a_image) {
+      await deleteFromCloudinary(vote.candidate_a_image);
+    }
+    if (vote.candidate_b_image) {
+      await deleteFromCloudinary(vote.candidate_b_image);
+    }
+
+    // 3. DB에서 투표 삭제
     const [result] = await pool.query(
       "DELETE FROM vote_posts WHERE id = ?",
       [voteId]
     );
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "투표를 찾을 수 없습니다." });
-    }
-
     res.status(200).json({
       success: true,
-      message: "투표가 삭제되었습니다."
+      message: "투표와 연관된 이미지가 삭제되었습니다."
     });
   } catch (error) {
     console.error("투표 삭제 에러:", error);
