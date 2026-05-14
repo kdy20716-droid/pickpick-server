@@ -2,6 +2,7 @@ import express from "express";
 import pool from "../db.js";
 import jwt from "jsonwebtoken";
 import { sendEmail } from "../utils/email.js";
+import { deleteFromCloudinary } from "../utils/cloudinary.js";
 
 const router = express.Router();
 
@@ -114,18 +115,35 @@ router.delete("/votes/:voteId", checkAdmin, async (req, res) => {
   try {
     const { voteId } = req.params;
 
+    // 1. 삭제할 투표의 이미지 URL 조회
+    const [votes] = await pool.query(
+      "SELECT candidate_a_image, candidate_b_image FROM vote_posts WHERE id = ?",
+      [voteId]
+    );
+
+    if (votes.length === 0) {
+      return res.status(404).json({ message: "투표를 찾을 수 없습니다." });
+    }
+
+    const vote = votes[0];
+
+    // 2. Cloudinary에서 이미지 삭제
+    if (vote.candidate_a_image) {
+      await deleteFromCloudinary(vote.candidate_a_image);
+    }
+    if (vote.candidate_b_image) {
+      await deleteFromCloudinary(vote.candidate_b_image);
+    }
+
+    // 3. DB에서 투표 삭제
     const [result] = await pool.query(
       "DELETE FROM vote_posts WHERE id = ?",
       [voteId]
     );
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "투표를 찾을 수 없습니다." });
-    }
-
     res.status(200).json({
       success: true,
-      message: "투표가 삭제되었습니다."
+      message: "투표와 연관된 이미지가 삭제되었습니다."
     });
   } catch (error) {
     console.error("투표 삭제 에러:", error);
@@ -186,6 +204,49 @@ router.delete("/comments/:commentId", checkAdmin, async (req, res) => {
   } catch (error) {
     console.error("댓글 삭제 에러:", error);
     res.status(500).json({ message: "댓글 삭제 중 에러가 발생했습니다." });
+  }
+});
+
+// --- 유저 관리 API ---
+
+// 유저 목록 조회 : GET /admin/users
+router.get("/users", checkAdmin, async (req, res) => {
+  try {
+    const [users] = await pool.query(
+      "SELECT id, nickname, name, email, tier, selected_border, unlocked_borders, role, created_at FROM users ORDER BY created_at DESC"
+    );
+    res.status(200).json({ success: true, users });
+  } catch (error) {
+    console.error("유저 목록 조회 에러:", error);
+    res.status(500).json({ message: "유저 목록을 불러오는 중 에러가 발생했습니다." });
+  }
+});
+
+// 유저 티어/권한 수정 : PUT /admin/users/:userId/status
+router.put("/users/:userId/status", checkAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { tier, role, unlocked_borders } = req.body;
+
+    let updateFields = [];
+    let params = [];
+
+    if (tier) { updateFields.push("tier = ?"); params.push(tier); }
+    if (role) { updateFields.push("role = ?"); params.push(role); }
+    if (unlocked_borders !== undefined) { 
+      updateFields.push("unlocked_borders = ?"); 
+      params.push(unlocked_borders); 
+    }
+
+    if (updateFields.length === 0) return res.status(400).json({ message: "수정할 내용이 없습니다." });
+
+    params.push(userId);
+    await pool.query(`UPDATE users SET ${updateFields.join(", ")} WHERE id = ?`, params);
+
+    res.status(200).json({ success: true, message: "유저 정보가 수정되었습니다." });
+  } catch (error) {
+    console.error("유저 수정 에러:", error);
+    res.status(500).json({ message: "유저 수정 중 에러가 발생했습니다." });
   }
 });
 

@@ -3,7 +3,7 @@ import pool from "../db.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import multer from "multer";
-import { uploadToCloudinary } from "../utils/cloudinary.js";
+import { uploadToCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
 import { sendEmail } from "../utils/email.js";
 
 const router = express.Router();
@@ -23,7 +23,14 @@ router.put(
       let profile_image = null;
 
       if (req.file) {
-        // Cloudinary에 파일 업로드
+        // 0. 기존 이미지 정보 조회
+        const [oldUsers] = await pool.query("SELECT profile_image FROM users WHERE id = ?", [userId]);
+        if (oldUsers.length > 0 && oldUsers[0].profile_image) {
+          // 1. 기존 이미지가 있으면 Cloudinary에서 삭제
+          await deleteFromCloudinary(oldUsers[0].profile_image);
+        }
+
+        // 2. Cloudinary에 새 파일 업로드
         profile_image = await uploadToCloudinary(req.file.buffer, req.file.originalname);
       }
 
@@ -83,6 +90,38 @@ router.put(
     }
   },
 );
+
+// 프로필 테두리 변경 API : PUT /users/border/:userId
+router.put("/border/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { border } = req.body;
+
+    // 티어별 해금 로직 (프론트에서도 처리하지만 서버에서도 한 번 더 검증)
+    const [userRows] = await pool.query("SELECT tier FROM users WHERE id = ?", [userId]);
+    if (userRows.length === 0) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+
+    const userTier = userRows[0].tier;
+    const tiers = ["bronze", "silver", "gold", "platinum", "diamond"];
+    const userTierIndex = tiers.indexOf(userTier);
+    const selectedTierIndex = tiers.indexOf(border);
+
+    if (border !== null && selectedTierIndex > userTierIndex) {
+      return res.status(403).json({ message: "해당 테두리를 장착할 권한이 없습니다." });
+    }
+
+    await pool.query("UPDATE users SET selected_border = ? WHERE id = ?", [border, userId]);
+
+    res.status(200).json({
+      success: true,
+      message: "테두리가 변경되었습니다.",
+      selected_border: border
+    });
+  } catch (error) {
+    console.error("테두리 변경 에러:", error);
+    res.status(500).json({ message: "테두리 변경에 실패했습니다." });
+  }
+});
 
 // 회원가입 API : POST /users/signin
 router.post("/signin", async (req, res) => {
@@ -434,25 +473,25 @@ router.delete("/account/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // DB에서 사용자 삭제 (ON DELETE CASCADE로 인해 연관된 데이터도 함께 삭제됨)
-    const [result] = await pool.query("DELETE FROM users WHERE id = ?", [
-      userId,
-    ]);
-
-    if (result.affectedRows === 0) {
-      return res
-        .status(404)
-        .json({ success: false, message: "사용자를 찾을 수 없습니다." });
+    // 1. 사용자 정보(프로필 이미지) 조회
+    const [users] = await pool.query("SELECT profile_image FROM users WHERE id = ?", [userId]);
+    
+    if (users.length === 0) {
+      return res.status(404).json({ success: false, message: "사용자를 찾을 수 없습니다." });
     }
 
-    res
-      .status(200)
-      .json({ success: true, message: "회원 탈퇴가 완료되었습니다." });
+    // 2. Cloudinary에서 프로필 이미지 삭제
+    if (users[0].profile_image) {
+      await deleteFromCloudinary(users[0].profile_image);
+    }
+
+    // 3. DB에서 사용자 삭제 (ON DELETE CASCADE로 인해 연관된 데이터도 함께 삭제됨)
+    await pool.query("DELETE FROM users WHERE id = ?", [userId]);
+
+    res.status(200).json({ success: true, message: "회원 탈퇴와 이미지가 정상적으로 처리되었습니다." });
   } catch (error) {
     console.error("회원 탈퇴 에러:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "서버 에러가 발생했습니다." });
+    res.status(500).json({ success: false, message: "서버 에러가 발생했습니다." });
   }
 });
 
