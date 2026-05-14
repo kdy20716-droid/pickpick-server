@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS vote_posts (
     candidate_b_count INT DEFAULT 0,
     view_count INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NULL,
+    winner_side ENUM('A', 'B', 'DRAW') NULL,
     FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
