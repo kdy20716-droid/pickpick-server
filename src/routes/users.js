@@ -458,10 +458,11 @@ router.get("/:userId/notifications", async (req, res) => {
   try {
     const { userId } = req.params;
     const [notifications] = await pool.query(
-      `SELECT n.*, u.name as sender_name, u.nickname as sender_nickname, c.content as comment_content
+      `SELECT n.*, u.name as sender_name, u.nickname as sender_nickname, c.content as comment_content, p.title as post_title
        FROM notifications n
        JOIN users u ON n.sender_id = u.id
        LEFT JOIN comments c ON n.comment_id = c.id
+       LEFT JOIN vote_posts p ON n.post_id = p.id
        WHERE n.user_id = ?
        ORDER BY n.created_at DESC`,
       [userId],
