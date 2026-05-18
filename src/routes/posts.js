@@ -208,8 +208,15 @@ router.post(
   ]),
   async (req, res) => {
     try {
-      const { author_id, category, title, candidate_a_name, candidate_b_name } =
-        req.body;
+      const {
+        author_id,
+        category,
+        title,
+        candidate_a_name,
+        candidate_b_name,
+        candidate_a_type,
+        candidate_b_type,
+      } = req.body;
 
       // Cloudinary에 파일 업로드 및 URL 반환
       let candidate_a_image = null;
@@ -238,8 +245,8 @@ router.post(
 
       const query = `
       INSERT INTO vote_posts 
-      (author_id, category, title, candidate_a_name, candidate_a_image, candidate_b_name, candidate_b_image, expires_at) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 1 DAY))
+      (author_id, category, title, candidate_a_name, candidate_a_image, candidate_a_type, candidate_b_name, candidate_b_image, candidate_b_type, expires_at) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 1 DAY))
     `;
       const values = [
         author_id,
@@ -247,8 +254,10 @@ router.post(
         title,
         candidate_a_name,
         candidate_a_image,
+        candidate_a_type || "image",
         candidate_b_name,
         candidate_b_image,
+        candidate_b_type || "image",
       ];
 
       const [result] = await pool.execute(query, values);
@@ -335,8 +344,15 @@ router.put(
   async (req, res) => {
     const { postId } = req.params;
     try {
-      const { author_id, category, title, candidate_a_name, candidate_b_name } =
-        req.body;
+      const {
+        author_id,
+        category,
+        title,
+        candidate_a_name,
+        candidate_b_name,
+        candidate_a_type,
+        candidate_b_type,
+      } = req.body;
 
       // 작성자 확인
       const [posts] = await pool.query(
@@ -375,6 +391,14 @@ router.put(
       if (candidate_b_name) {
         updateFields.push("candidate_b_name = ?");
         values.push(candidate_b_name);
+      }
+      if (candidate_a_type) {
+        updateFields.push("candidate_a_type = ?");
+        values.push(candidate_a_type);
+      }
+      if (candidate_b_type) {
+        updateFields.push("candidate_b_type = ?");
+        values.push(candidate_b_type);
       }
 
       // 이미지 처리
