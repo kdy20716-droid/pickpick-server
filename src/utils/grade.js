@@ -29,9 +29,9 @@ export const updateGrade = async (userId) => {
     let newGrade = "UnRanked";
 
     // 2. 등급 기준 적용 (상위 등급부터 확인)
-    // DIAMOND: 투표 우승 1000회 이상 AND 게시글 생성 500회 이상
+    // MASTER: 투표 우승 1000회 이상 AND 게시글 생성 500회 이상
     if (vote_win_count >= 1000 && post_creation_count >= 500) {
-      newGrade = "DIAMOND";
+      newGrade = "MASTER";
     }
     // PLATINUM: 투표 우승 500회 이상 AND 게시글 생성 200회 이상
     else if (vote_win_count >= 500 && post_creation_count >= 200) {
