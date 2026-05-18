@@ -557,6 +557,18 @@ router.get("/init-db", async (req, res) => {
       );
     } catch (e) {}
 
+    // candidate_a_type, candidate_b_type 컬럼 추가 시도
+    try {
+      await pool.query(
+        "ALTER TABLE vote_posts ADD COLUMN candidate_a_type VARCHAR(20) DEFAULT 'image'",
+      );
+    } catch (e) {}
+    try {
+      await pool.query(
+        "ALTER TABLE vote_posts ADD COLUMN candidate_b_type VARCHAR(20) DEFAULT 'image'",
+      );
+    } catch (e) {}
+
     // 기존 데이터 만료 시간 설정 (1일 뒤)
     try {
       await pool.query(
