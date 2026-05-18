@@ -210,10 +210,21 @@ router.delete("/:postId/comments/:commentId", async (req, res) => {
   }
 
   try {
-    const [result] = await pool.query(
-      "DELETE FROM comments WHERE id = ? AND user_id = ?",
-      [commentId, user_id]
-    );
+    const [user] = await pool.query("SELECT role FROM users WHERE id = ?", [user_id]);
+    const isAdmin = user.length > 0 && user[0].role === 'admin';
+
+    let result;
+    if (isAdmin) {
+      [result] = await pool.query(
+        "DELETE FROM comments WHERE id = ?",
+        [commentId]
+      );
+    } else {
+      [result] = await pool.query(
+        "DELETE FROM comments WHERE id = ? AND user_id = ?",
+        [commentId, user_id]
+      );
+    }
 
     if (result.affectedRows > 0) {
       res.status(200).json({ success: true, message: "댓글이 삭제되었습니다." });
@@ -243,10 +254,12 @@ router.post("/:postId/comments/:commentId/like", async (req, res) => {
 
     if (existingLike.length > 0) {
       await pool.query("DELETE FROM comment_likes WHERE comment_id = ? AND user_id = ?", [commentId, user_id]);
-      return res.status(200).json({ success: true, liked: false, message: "댓글 좋아요 취소" });
+      const [countResult] = await pool.query("SELECT COUNT(*) as likes FROM comment_likes WHERE comment_id = ?", [commentId]);
+      return res.status(200).json({ success: true, liked: false, likes: countResult[0].likes, message: "댓글 좋아요 취소" });
     } else {
       await pool.query("INSERT INTO comment_likes (comment_id, user_id) VALUES (?, ?)", [commentId, user_id]);
-      return res.status(200).json({ success: true, liked: true, message: "댓글 좋아요 추가" });
+      const [countResult] = await pool.query("SELECT COUNT(*) as likes FROM comment_likes WHERE comment_id = ?", [commentId]);
+      return res.status(200).json({ success: true, liked: true, likes: countResult[0].likes, message: "댓글 좋아요 추가" });
     }
   } catch (error) {
     console.error("댓글 좋아요 처리 에러:", error);
