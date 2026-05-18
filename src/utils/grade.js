@@ -52,8 +52,12 @@ export const updateGrade = async (userId) => {
 
     // 3. 등급이 변경된 경우에만 DB 업데이트
     if (newGrade !== currentGrade) {
-      await pool.query("UPDATE users SET grade = ? WHERE id = ?", [newGrade, userId]);
-      console.log(`[Grade Update] User ${userId}: ${currentGrade} -> ${newGrade}`);
+      const newTier = newGrade.toLowerCase();
+      await pool.query(
+        "UPDATE users SET grade = ?, tier = ? WHERE id = ?",
+        [newGrade, newTier, userId]
+      );
+      console.log(`[Grade Update] User ${userId}: ${currentGrade} -> ${newGrade} (tier: ${newTier})`);
     }
   } catch (error) {
     console.error(`[Grade Update Error] User ${userId}:`, error);

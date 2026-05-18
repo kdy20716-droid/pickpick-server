@@ -37,30 +37,18 @@ async function initializeDatabase() {
   let conn;
   try {
     conn = await pool.getConnection();
-    await conn.query(
-      `ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(100)`,
-    );
-    await conn.query(
-      `ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(100)`,
-    );
-    await conn.query(
-      `ALTER TABLE users ADD COLUMN IF NOT EXISTS birth VARCHAR(8)`,
-    );
-    await conn.query(
-      `ALTER TABLE users ADD COLUMN IF NOT EXISTS gender VARCHAR(10)`,
-    );
-    await conn.query(
-      `ALTER TABLE users ADD COLUMN IF NOT EXISTS nationality VARCHAR(10)`,
-    );
-    await conn.query(
-      `ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image VARCHAR(255)`,
-    );
-    await conn.query(
-      `ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('user', 'admin') DEFAULT 'user'`,
-    );
-    await conn.query(
-      `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
-    );
+    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(100)`);
+    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(100)`);
+    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS birth VARCHAR(8)`);
+    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS gender VARCHAR(10)`);
+    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS nationality VARCHAR(10)`);
+    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image VARCHAR(255)`);
+    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('user', 'admin') DEFAULT 'user'`);
+
+    // 미디어 타입 컬럼 추가
+    await conn.query(`ALTER TABLE vote_posts ADD COLUMN IF NOT EXISTS candidate_a_type VARCHAR(20) DEFAULT 'image'`);
+    await conn.query(`ALTER TABLE vote_posts ADD COLUMN IF NOT EXISTS candidate_b_type VARCHAR(20) DEFAULT 'image'`);
+
     console.log("✅ [DB] Database schema initialized");
   } catch (error) {
     console.error("⚠️ [DB] Database initialization failed:", error.message);

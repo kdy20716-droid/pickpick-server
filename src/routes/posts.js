@@ -208,11 +208,18 @@ router.post(
   ]),
   async (req, res) => {
     try {
-      const { author_id, category, title, candidate_a_name, candidate_b_name } =
-        req.body;
+      const {
+        author_id,
+        category,
+        title,
+        candidate_a_name,
+        candidate_b_name,
+        candidate_a_type,
+        candidate_b_type,
+      } = req.body;
 
       // Cloudinary에 파일 업로드 및 URL 반환
-      let candidate_a_image = null;
+      let candidate_a_image = req.body.candidate_a_image || null;
       if (req.files && req.files["candidate_a_image"]) {
         const file = req.files["candidate_a_image"][0];
         candidate_a_image = await uploadToCloudinary(
@@ -221,7 +228,7 @@ router.post(
         );
       }
 
-      let candidate_b_image = null;
+      let candidate_b_image = req.body.candidate_b_image || null;
       if (req.files && req.files["candidate_b_image"]) {
         const file = req.files["candidate_b_image"][0];
         candidate_b_image = await uploadToCloudinary(
@@ -238,8 +245,8 @@ router.post(
 
       const query = `
       INSERT INTO vote_posts 
-      (author_id, category, title, candidate_a_name, candidate_a_image, candidate_b_name, candidate_b_image, expires_at) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 1 DAY))
+      (author_id, category, title, candidate_a_name, candidate_a_image, candidate_a_type, candidate_b_name, candidate_b_image, candidate_b_type, expires_at) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 1 DAY))
     `;
       const values = [
         author_id,
@@ -247,8 +254,10 @@ router.post(
         title,
         candidate_a_name,
         candidate_a_image,
+        candidate_a_type || "image",
         candidate_b_name,
         candidate_b_image,
+        candidate_b_type || "image",
       ];
 
       const [result] = await pool.execute(query, values);
@@ -335,8 +344,15 @@ router.put(
   async (req, res) => {
     const { postId } = req.params;
     try {
-      const { author_id, category, title, candidate_a_name, candidate_b_name } =
-        req.body;
+      const {
+        author_id,
+        category,
+        title,
+        candidate_a_name,
+        candidate_b_name,
+        candidate_a_type,
+        candidate_b_type,
+      } = req.body;
 
       // 작성자 확인
       const [posts] = await pool.query(
@@ -376,8 +392,26 @@ router.put(
         updateFields.push("candidate_b_name = ?");
         values.push(candidate_b_name);
       }
+      if (candidate_a_type) {
+        updateFields.push("candidate_a_type = ?");
+        values.push(candidate_a_type);
+      }
+      if (candidate_b_type) {
+        updateFields.push("candidate_b_type = ?");
+        values.push(candidate_b_type);
+      }
 
-      // 이미지 처리
+      // 유튜브 ID나 기존 이미지 경로 처리
+      if (req.body.candidate_a_image && !req.files?.["candidate_a_image"]) {
+        updateFields.push("candidate_a_image = ?");
+        values.push(req.body.candidate_a_image);
+      }
+      if (req.body.candidate_b_image && !req.files?.["candidate_b_image"]) {
+        updateFields.push("candidate_b_image = ?");
+        values.push(req.body.candidate_b_image);
+      }
+
+      // 이미지 파일 처리
       if (req.files) {
         // 기존 이미지 정보 조회 (삭제를 위함)
         const [oldPost] = await pool.query(
@@ -530,6 +564,18 @@ router.get("/init-db", async (req, res) => {
     try {
       await pool.query(
         "ALTER TABLE vote_posts ADD COLUMN winner_side ENUM('A', 'B', 'DRAW') NULL",
+      );
+    } catch (e) {}
+
+    // candidate_a_type, candidate_b_type 컬럼 추가 시도
+    try {
+      await pool.query(
+        "ALTER TABLE vote_posts ADD COLUMN candidate_a_type VARCHAR(20) DEFAULT 'image'",
+      );
+    } catch (e) {}
+    try {
+      await pool.query(
+        "ALTER TABLE vote_posts ADD COLUMN candidate_b_type VARCHAR(20) DEFAULT 'image'",
       );
     } catch (e) {}
 
