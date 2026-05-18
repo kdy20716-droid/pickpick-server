@@ -56,7 +56,7 @@ router.post("/:postId", async (req, res) => {
 
     // 3. 사용자 투표 참여 횟수 증가 및 등급 업데이트
     await conn.query(
-      "UPDATE users SET vote_participation_count = vote_participation_count + 1 WHERE id = ?",
+      "UPDATE users SET vote_participation_count = COALESCE(vote_participation_count, 0) + 1 WHERE id = ?",
       [user_id]
     );
 
@@ -282,10 +282,22 @@ router.delete("/:postId/comments/:commentId", async (req, res) => {
   }
 
   try {
-    const [result] = await pool.query(
-      "DELETE FROM comments WHERE id = ? AND user_id = ?",
-      [commentId, user_id],
-    );
+    const [user] = await pool.query("SELECT role FROM users WHERE id = ?", [
+      user_id,
+    ]);
+    const isAdmin = user.length > 0 && user[0].role === "admin";
+
+    let result;
+    if (isAdmin) {
+      [result] = await pool.query("DELETE FROM comments WHERE id = ?", [
+        commentId,
+      ]);
+    } else {
+      [result] = await pool.query(
+        "DELETE FROM comments WHERE id = ? AND user_id = ?",
+        [commentId, user_id],
+      );
+    }
 
     if (result.affectedRows > 0) {
       res
@@ -327,17 +339,35 @@ router.post("/:postId/comments/:commentId/like", async (req, res) => {
         "DELETE FROM comment_likes WHERE comment_id = ? AND user_id = ?",
         [commentId, user_id],
       );
+      const [countResult] = await pool.query(
+        "SELECT COUNT(*) as likes FROM comment_likes WHERE comment_id = ?",
+        [commentId],
+      );
       return res
         .status(200)
-        .json({ success: true, liked: false, message: "댓글 좋아요 취소" });
+        .json({
+          success: true,
+          liked: false,
+          likes: countResult[0].likes,
+          message: "댓글 좋아요 취소",
+        });
     } else {
       await pool.query(
         "INSERT INTO comment_likes (comment_id, user_id) VALUES (?, ?)",
         [commentId, user_id],
       );
+      const [countResult] = await pool.query(
+        "SELECT COUNT(*) as likes FROM comment_likes WHERE comment_id = ?",
+        [commentId],
+      );
       return res
         .status(200)
-        .json({ success: true, liked: true, message: "댓글 좋아요 추가" });
+        .json({
+          success: true,
+          liked: true,
+          likes: countResult[0].likes,
+          message: "댓글 좋아요 추가",
+        });
     }
   } catch (error) {
     console.error("댓글 좋아요 처리 에러:", error);

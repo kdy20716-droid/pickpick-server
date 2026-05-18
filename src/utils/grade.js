@@ -19,7 +19,11 @@ export const updateGrade = async (userId) => {
     }
 
     const user = users[0];
-    const { vote_participation_count, post_creation_count, vote_win_count, grade: currentGrade } = user;
+    const vote_participation_count = user.vote_participation_count || 0;
+    const post_creation_count = user.post_creation_count || 0;
+    const vote_win_count = user.vote_win_count || 0;
+    const currentGrade = user.grade || "UnRanked";
+    
     console.log(`[Grade] User stats: v=${vote_participation_count}, p=${post_creation_count}, w=${vote_win_count}, current=${currentGrade}`);
 
     let newGrade = "UnRanked";
