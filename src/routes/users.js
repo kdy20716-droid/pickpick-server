@@ -101,13 +101,26 @@ router.put("/border/:userId", async (req, res) => {
     const [userRows] = await pool.query("SELECT tier FROM users WHERE id = ?", [userId]);
     if (userRows.length === 0) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
 
-    const storedTier = userRows[0].tier || "bronze";
+    const storedTier = (userRows[0].tier || "bronze").toLowerCase();
     const userTier = storedTier === "diamond" ? "master" : storedTier;
+    
     const tiers = ["bronze", "silver", "gold", "platinum", "master"];
     const userTierIndex = tiers.indexOf(userTier);
-    const selectedTierIndex = tiers.indexOf(border === "diamond" ? "master" : border);
+    
+    // 선택된 테두리 정규화
+    const normalizedSelectedBorder = (border || "bronze").toLowerCase();
+    const selectedTier = normalizedSelectedBorder === "diamond" ? "master" : normalizedSelectedBorder;
+    const selectedTierIndex = tiers.indexOf(selectedTier);
 
-    if (border !== null && selectedTierIndex > userTierIndex) {
+    // 어드민/픽 테두리는 별도 권한 체크 (현재는 어드민만 가능하게 하거나 unlocked_borders 체크 필요)
+    if (border === "admin" || border === "pick") {
+       const [fullUser] = await pool.query("SELECT role, unlocked_borders FROM users WHERE id = ?", [userId]);
+       const isAdmin = fullUser[0].role === "admin";
+       const isUnlocked = fullUser[0].unlocked_borders && fullUser[0].unlocked_borders.split(',').includes(border);
+       if (!isAdmin && !isUnlocked) {
+         return res.status(403).json({ message: "해당 테두리를 장착할 권한이 없습니다." });
+       }
+    } else if (border !== null && selectedTierIndex > userTierIndex) {
       return res.status(403).json({ message: "해당 테두리를 장착할 권한이 없습니다." });
     }
 
