@@ -219,7 +219,7 @@ router.post(
       } = req.body;
 
       // Cloudinary에 파일 업로드 및 URL 반환
-      let candidate_a_image = null;
+      let candidate_a_image = req.body.candidate_a_image || null;
       if (req.files && req.files["candidate_a_image"]) {
         const file = req.files["candidate_a_image"][0];
         candidate_a_image = await uploadToCloudinary(
@@ -228,7 +228,7 @@ router.post(
         );
       }
 
-      let candidate_b_image = null;
+      let candidate_b_image = req.body.candidate_b_image || null;
       if (req.files && req.files["candidate_b_image"]) {
         const file = req.files["candidate_b_image"][0];
         candidate_b_image = await uploadToCloudinary(
