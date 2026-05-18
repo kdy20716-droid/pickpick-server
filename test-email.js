@@ -1,14 +1,15 @@
-import nodemailer from 'nodemailer';
+import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  service: "gmail",
   auth: {
-    user: 'kdy20716@gmail.com',
-    pass: 'rhia oaek fenc wzso' // .env 파일의 비밀번호
-  }
+    user: "kdy20716@gmail.com",
+    pass: "rhia oaek fenc wzso", // .env 파일의 비밀번호
+  },
 });
 
-transporter.verify()
+transporter
+  .verify()
   .then(() => {
     console.log("✅ SMTP 연결 성공! 이메일 서버 정상입니다.");
   })

@@ -1,7 +1,11 @@
 import express from "express";
 import pool from "../db.js"; // DB 연결 가져오기
 import multer from "multer";
-import { uploadToCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
+import { updateGrade } from "../utils/grade.js";
+import {
+  uploadToCloudinary,
+  deleteFromCloudinary,
+} from "../utils/cloudinary.js";
 
 const router = express.Router();
 
@@ -12,17 +16,40 @@ const upload = multer({ storage: storage });
 // 1. 투표 게시글 목록 조회 API (검색, 카테고리, 정렬 포함) http://localhost:4000/votelist
 router.get("/", async (req, res) => {
   try {
-    // [추가] 만료된 투표 결과 집계 (winner_side 설정)
-    // 1일이 지난 투표 중 아직 winner_side가 결정되지 않은 게시글들을 찾아 업데이트
-    await pool.query(`
-      UPDATE vote_posts 
-      SET winner_side = CASE 
-        WHEN candidate_a_count > candidate_b_count THEN 'A'
-        WHEN candidate_b_count > candidate_a_count THEN 'B'
-        ELSE 'DRAW'
-      END
-      WHERE expires_at <= NOW() AND winner_side IS NULL
-    `);
+    // [추가] 만료된 투표 결과 집계 및 사용자 우승 횟수 업데이트
+    const [expiredPosts] = await pool.query(
+      "SELECT id, candidate_a_count, candidate_b_count FROM vote_posts WHERE expires_at <= NOW() AND winner_side IS NULL",
+    );
+
+    for (const post of expiredPosts) {
+      const { id: postId, candidate_a_count, candidate_b_count } = post;
+      let winnerSide = "DRAW";
+      if (candidate_a_count > candidate_b_count) winnerSide = "A";
+      else if (candidate_b_count > candidate_a_count) winnerSide = "B";
+
+      if (winnerSide !== "DRAW") {
+        // 우승 진영에 투표한 사용자들의 우승 횟수 증가
+        const [voters] = await pool.query(
+          "SELECT user_id FROM vote_records WHERE post_id = ? AND selected_side = ?",
+          [postId, winnerSide],
+        );
+
+        for (const voter of voters) {
+          await pool.query(
+            "UPDATE users SET vote_win_count = vote_win_count + 1 WHERE id = ?",
+            [voter.user_id],
+          );
+          // 등급 업데이트 확인 (비동기)
+          updateGrade(voter.user_id);
+        }
+      }
+
+      // 게시글에 우승 진영 기록
+      await pool.query("UPDATE vote_posts SET winner_side = ? WHERE id = ?", [
+        winnerSide,
+        postId,
+      ]);
+    }
 
     const {
       keyword,
@@ -102,7 +129,7 @@ router.get("/", async (req, res) => {
       orderClauses.push("(p.id = ?) DESC");
       params.push(pinned_post_id);
     }
-    
+
     // 로그인 시 투표하지 않은 게시글 우선 (NULL 우선 정렬)
     if (user_id) {
       orderClauses.push("vr.selected_side IS NOT NULL ASC"); // NULL(0) < NOT NULL(1)
@@ -133,7 +160,7 @@ router.get("/", async (req, res) => {
     res.status(500).json({
       success: false,
       message: "서버 오류로 게시글 조회에 실패했습니다.",
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -188,13 +215,19 @@ router.post(
       let candidate_a_image = null;
       if (req.files && req.files["candidate_a_image"]) {
         const file = req.files["candidate_a_image"][0];
-        candidate_a_image = await uploadToCloudinary(file.buffer, file.originalname);
+        candidate_a_image = await uploadToCloudinary(
+          file.buffer,
+          file.originalname,
+        );
       }
 
       let candidate_b_image = null;
       if (req.files && req.files["candidate_b_image"]) {
         const file = req.files["candidate_b_image"][0];
-        candidate_b_image = await uploadToCloudinary(file.buffer, file.originalname);
+        candidate_b_image = await uploadToCloudinary(
+          file.buffer,
+          file.originalname,
+        );
       }
 
       if (!author_id || !title || !candidate_a_name || !candidate_b_name) {
@@ -219,6 +252,13 @@ router.post(
       ];
 
       const [result] = await pool.execute(query, values);
+
+      // 사용자 게시글 생성 횟수 증가 및 등급 업데이트
+      await pool.query(
+        "UPDATE users SET post_creation_count = post_creation_count + 1 WHERE id = ?",
+        [author_id],
+      );
+      updateGrade(author_id);
 
       res.status(201).json({
         success: true,
@@ -273,10 +313,15 @@ router.delete("/:postId", async (req, res) => {
 
     // 4. DB에서 게시글 삭제
     await pool.query("DELETE FROM vote_posts WHERE id = ?", [postId]);
-    res.json({ success: true, message: "게시글과 이미지가 성공적으로 삭제되었습니다." });
+    res.json({
+      success: true,
+      message: "게시글과 이미지가 성공적으로 삭제되었습니다.",
+    });
   } catch (error) {
     console.error("게시글 삭제 에러:", error);
-    res.status(500).json({ success: false, message: "서버 오류가 발생했습니다." });
+    res
+      .status(500)
+      .json({ success: false, message: "서버 오류가 발생했습니다." });
   }
 });
 
@@ -335,14 +380,20 @@ router.put(
       // 이미지 처리
       if (req.files) {
         // 기존 이미지 정보 조회 (삭제를 위함)
-        const [oldPost] = await pool.query("SELECT candidate_a_image, candidate_b_image FROM vote_posts WHERE id = ?", [postId]);
+        const [oldPost] = await pool.query(
+          "SELECT candidate_a_image, candidate_b_image FROM vote_posts WHERE id = ?",
+          [postId],
+        );
 
         if (req.files["candidate_a_image"]) {
           if (oldPost.length > 0 && oldPost[0].candidate_a_image) {
             await deleteFromCloudinary(oldPost[0].candidate_a_image);
           }
           const file = req.files["candidate_a_image"][0];
-          const candidate_a_image = await uploadToCloudinary(file.buffer, file.originalname);
+          const candidate_a_image = await uploadToCloudinary(
+            file.buffer,
+            file.originalname,
+          );
           updateFields.push("candidate_a_image = ?");
           values.push(candidate_a_image);
         }
@@ -351,7 +402,10 @@ router.put(
             await deleteFromCloudinary(oldPost[0].candidate_b_image);
           }
           const file = req.files["candidate_b_image"][0];
-          const candidate_b_image = await uploadToCloudinary(file.buffer, file.originalname);
+          const candidate_b_image = await uploadToCloudinary(
+            file.buffer,
+            file.originalname,
+          );
           updateFields.push("candidate_b_image = ?");
           values.push(candidate_b_image);
         }
@@ -365,7 +419,10 @@ router.put(
       const query = `UPDATE vote_posts SET ${updateFields.join(", ")} WHERE id = ?`;
       await pool.execute(query, values);
 
-      res.json({ success: true, message: "게시글이 성공적으로 수정되었습니다!" });
+      res.json({
+        success: true,
+        message: "게시글이 성공적으로 수정되었습니다!",
+      });
     } catch (error) {
       console.error("게시글 수정 에러:", error);
       res.status(500).json({
@@ -387,7 +444,7 @@ router.get("/debug-data", async (req, res) => {
       userCount: users.length,
       users: users,
       postCount: posts.length,
-      posts: posts
+      posts: posts,
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -417,7 +474,30 @@ router.get("/init-db", async (req, res) => {
     `);
 
     // name 컬럼 추가 시도
-    try { await pool.query("ALTER TABLE users ADD COLUMN name VARCHAR(50)"); } catch (e) {}
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN name VARCHAR(50)");
+    } catch (e) {}
+    // 통계 및 등급 컬럼 추가 시도
+    try {
+      await pool.query(
+        "ALTER TABLE users ADD COLUMN vote_participation_count INT DEFAULT 0",
+      );
+    } catch (e) {}
+    try {
+      await pool.query(
+        "ALTER TABLE users ADD COLUMN post_creation_count INT DEFAULT 0",
+      );
+    } catch (e) {}
+    try {
+      await pool.query(
+        "ALTER TABLE users ADD COLUMN vote_win_count INT DEFAULT 0",
+      );
+    } catch (e) {}
+    try {
+      await pool.query(
+        "ALTER TABLE users ADD COLUMN grade VARCHAR(20) DEFAULT 'UnRanked'",
+      );
+    } catch (e) {}
 
     // 3. 투표 게시글 테이블
     await pool.query(`
@@ -441,12 +521,24 @@ router.get("/init-db", async (req, res) => {
     `);
 
     // expires_at 컬럼 추가 시도
-    try { await pool.query("ALTER TABLE vote_posts ADD COLUMN expires_at TIMESTAMP NULL"); } catch (e) {}
+    try {
+      await pool.query(
+        "ALTER TABLE vote_posts ADD COLUMN expires_at TIMESTAMP NULL",
+      );
+    } catch (e) {}
     // winner_side 컬럼 추가 시도
-    try { await pool.query("ALTER TABLE vote_posts ADD COLUMN winner_side ENUM('A', 'B', 'DRAW') NULL"); } catch (e) {}
-    
+    try {
+      await pool.query(
+        "ALTER TABLE vote_posts ADD COLUMN winner_side ENUM('A', 'B', 'DRAW') NULL",
+      );
+    } catch (e) {}
+
     // 기존 데이터 만료 시간 설정 (1일 뒤)
-    try { await pool.query("UPDATE vote_posts SET expires_at = DATE_ADD(NOW(), INTERVAL 1 DAY) WHERE expires_at IS NULL"); } catch (e) {}
+    try {
+      await pool.query(
+        "UPDATE vote_posts SET expires_at = DATE_ADD(NOW(), INTERVAL 1 DAY) WHERE expires_at IS NULL",
+      );
+    } catch (e) {}
 
     // 4. 투표 기록 테이블
     await pool.query(`
@@ -477,8 +569,16 @@ router.get("/init-db", async (req, res) => {
     `);
 
     // parent_id 컬럼 추가 시도
-    try { await pool.query("ALTER TABLE comments ADD COLUMN parent_id BIGINT DEFAULT NULL"); } catch (e) {}
-    try { await pool.query("ALTER TABLE comments ADD FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE"); } catch (e) {}
+    try {
+      await pool.query(
+        "ALTER TABLE comments ADD COLUMN parent_id BIGINT DEFAULT NULL",
+      );
+    } catch (e) {}
+    try {
+      await pool.query(
+        "ALTER TABLE comments ADD FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE",
+      );
+    } catch (e) {}
 
     // 6. 좋아요 테이블
     await pool.query(`
@@ -523,10 +623,17 @@ router.get("/init-db", async (req, res) => {
       )
     `);
 
-    res.json({ success: true, message: "모든 테이블이 성공적으로 확인/생성되었습니다." });
+    res.json({
+      success: true,
+      message: "모든 테이블이 성공적으로 확인/생성되었습니다.",
+    });
   } catch (error) {
     console.error("DB 초기화 에러:", error);
-    res.status(500).json({ success: false, message: "DB 초기화 실패", error: error.message });
+    res.status(500).json({
+      success: false,
+      message: "DB 초기화 실패",
+      error: error.message,
+    });
   }
 });
 

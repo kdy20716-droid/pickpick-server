@@ -1,5 +1,6 @@
 import express from "express";
 import pool from "../db.js"; // DB 연결 가져오기
+import { updateGrade } from "../utils/grade.js";
 
 const router = express.Router();
 
@@ -53,38 +54,55 @@ router.post("/:postId", async (req, res) => {
       [postId],
     );
 
-    // 3. 업데이트된 최신 투표수 가져오기 (비율 계산을 위해)
+    // 3. 사용자 투표 참여 횟수 증가 및 등급 업데이트
+    await conn.query(
+      "UPDATE users SET vote_participation_count = vote_participation_count + 1 WHERE id = ?",
+      [user_id]
+    );
+
+    // 4. 업데이트된 최신 투표수 가져오기 (비율 계산을 위해)
     const [rows] = await conn.query(
       "SELECT candidate_a_count, candidate_b_count FROM vote_posts WHERE id = ?",
       [postId],
     );
 
     await conn.commit();
+
+    // 트랜잭션 종료 후 등급 계산
+    try {
+      await updateGrade(user_id);
+    } catch (gradeError) {
+      console.error("❌ 등급 업데이트 중 에러 (투표는 성공):", gradeError);
+    }
+
     res.status(200).json({
       success: true,
       message: "투표 완료!",
       counts: rows[0],
     });
   } catch (error) {
-    await conn.rollback();
+    if (conn) await conn.rollback();
+    console.error("❌ 투표 처리 상세 에러:", {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      userId: user_id,
+      postId: postId
+    });
+
     if (error.code === "ER_DUP_ENTRY") {
-      res
-        .status(400)
-        .json({ success: false, message: "이미 참여한 투표입니다." });
+      return res.status(400).json({ success: false, message: "이미 참여한 투표입니다." });
     } else if (error.code === "ER_NO_REFERENCED_ROW_2") {
-      // 외래 키 제약 조건 위배: user_id 또는 post_id가 존재하지 않음
-      res
-        .status(401)
-        .json({
-          success: false,
-          message: "유효하지 않은 계정입니다. 다시 로그인해주세요.",
-        });
+      return res.status(401).json({ success: false, message: "유효하지 않은 계정입니다. 다시 로그인해주세요." });
     } else {
-      console.error("투표 처리 에러:", error);
-      res.status(500).json({ success: false, message: "서버 에러 발생" });
+      return res.status(500).json({
+        success: false,
+        message: "서버 에러 발생",
+        error: error.message // 디버깅을 위해 에러 메시지 포함
+      });
     }
   } finally {
-    conn.release();
+    if (conn) conn.release();
   }
 });
 

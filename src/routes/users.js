@@ -235,37 +235,27 @@ router.post("/login", async (req, res) => {
 
     // 2. 사용자가 존재하지 않는 경우
     if (users.length === 0) {
-      console.log("❌ 사용자를 찾을 수 없음:", username);
+      console.log("❌ 사용자를 찾을 수 없음 (401):", username);
       return res
         .status(401)
         .json({ message: "아이디 또는 비밀번호가 일치하지 않습니다." });
     }
 
     const user = users[0];
-    console.log("✅ DB에서 조회된 사용자:", {
-      id: user.id,
-      nickname: user.nickname,
-      name: user.name,
-      email: user.email,
-      birth: user.birth,
-      gender: user.gender,
-      nationality: user.nationality,
-      profile_image: user.profile_image,
-      role: user.role,
-    });
+    console.log("✅ DB에서 사용자 발견:", user.nickname);
 
     // 3. 비밀번호 비교
-    console.log("🔐 비밀번호 검증 중...");
+    console.log("🔐 비밀번호 검증 시작...");
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      console.log("❌ 비밀번호 불일치");
+      console.log("❌ 비밀번호 불일치 (401):", username);
       return res
         .status(401)
         .json({ message: "아이디 또는 비밀번호가 일치하지 않습니다." });
     }
 
-    console.log("✅ 비밀번호 일치");
+    console.log("✅ 비밀번호 검증 통과");
 
     // 4. 로그인 성공 - JWT 토큰 생성
     const token = jwt.sign(
@@ -285,6 +275,10 @@ router.post("/login", async (req, res) => {
       nationality: user.nationality,
       profile_image: user.profile_image,
       role: user.role || "user",
+      grade: user.grade || "UnRanked",
+      vote_participation_count: user.vote_participation_count || 0,
+      post_creation_count: user.post_creation_count || 0,
+      vote_win_count: user.vote_win_count || 0,
       created_at: user.created_at,
       selected_border: user.selected_border,
       tier: user.tier,
