@@ -245,7 +245,55 @@ router.post("/login", async (req, res) => {
 
     console.log("✅ 비밀번호 검증 통과");
 
-    // 4. 로그인 성공 - JWT 토큰 생성
+    // 4. 통계 데이터 동기화 (기존 기록 바탕으로 숫자 복구)
+    try {
+      // 투표 참여 횟수 집계
+      const [[{ participation_count }]] = await pool.query(
+        "SELECT COUNT(*) as participation_count FROM vote_records WHERE user_id = ?",
+        [user.id]
+      );
+
+      // 게시글 생성 횟수 집계
+      const [[{ creation_count }]] = await pool.query(
+        "SELECT COUNT(*) as creation_count FROM vote_posts WHERE author_id = ?",
+        [user.id]
+      );
+
+      // 투표 우승 횟수 집계 (이미 winner_side가 결정된 게시물 중 내가 맞춘 것)
+      const [[{ win_count }]] = await pool.query(
+        `SELECT COUNT(*) as win_count 
+         FROM vote_records vr
+         JOIN vote_posts vp ON vr.post_id = vp.id
+         WHERE vr.user_id = ? AND vp.winner_side = vr.selected_side`,
+        [user.id]
+      );
+
+      console.log(`📊 [Sync] User ${user.nickname} Statistics:`);
+      console.log(`   - Participation: ${participation_count}`);
+      console.log(`   - Creations: ${creation_count}`);
+      console.log(`   - Wins: ${win_count}`);
+
+      // DB 업데이트
+      await pool.query(
+        "UPDATE users SET vote_participation_count = ?, post_creation_count = ?, vote_win_count = ? WHERE id = ?",
+        [participation_count, creation_count, win_count, user.id]
+      );
+
+      // 등급 동기화
+      const { updateGrade } = await import("../utils/grade.js");
+      await updateGrade(user.id);
+
+      // 업데이트된 최신 사용자 정보 다시 가져오기
+      const [updatedUsers] = await pool.query("SELECT * FROM users WHERE id = ?", [user.id]);
+      user.vote_participation_count = updatedUsers[0].vote_participation_count;
+      user.post_creation_count = updatedUsers[0].post_creation_count;
+      user.vote_win_count = updatedUsers[0].vote_win_count;
+      user.grade = updatedUsers[0].grade;
+    } catch (syncError) {
+      console.error("❌ 통계 동기화 에러 (로그인은 계속 진행):", syncError);
+    }
+
+    // 5. 로그인 성공 - JWT 토큰 생성
     const token = jwt.sign(
       { userId: user.id, nickname: user.nickname, role: user.role || "user" },
       process.env.SECRET_KEY,
@@ -269,8 +317,7 @@ router.post("/login", async (req, res) => {
       vote_win_count: user.vote_win_count || 0,
       created_at: user.created_at,
       selected_border: user.selected_border,
-      tier: user.tier,
-      grade: user.grade,
+      tier: user.tier || "bronze",
       unlocked_borders: user.unlocked_borders,
     };
 

@@ -36,11 +36,11 @@ router.get("/", async (req, res) => {
 
         for (const voter of voters) {
           await pool.query(
-            "UPDATE users SET vote_win_count = vote_win_count + 1 WHERE id = ?",
+            "UPDATE users SET vote_win_count = COALESCE(vote_win_count, 0) + 1 WHERE id = ?",
             [voter.user_id],
           );
-          // 등급 업데이트 확인 (비동기)
-          updateGrade(voter.user_id);
+          // 등급 업데이트 확인 (비동기 처리 유지하되 에러 캐치 추가)
+          await updateGrade(voter.user_id).catch(err => console.error("Grade update error:", err));
         }
       }
 
@@ -255,10 +255,10 @@ router.post(
 
       // 사용자 게시글 생성 횟수 증가 및 등급 업데이트
       await pool.query(
-        "UPDATE users SET post_creation_count = post_creation_count + 1 WHERE id = ?",
+        "UPDATE users SET post_creation_count = COALESCE(post_creation_count, 0) + 1 WHERE id = ?",
         [author_id],
       );
-      updateGrade(author_id);
+      await updateGrade(author_id);
 
       res.status(201).json({
         success: true,

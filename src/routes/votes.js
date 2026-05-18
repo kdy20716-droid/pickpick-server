@@ -50,7 +50,7 @@ router.post("/:postId", async (req, res) => {
 
     // 3. 사용자 투표 참여 횟수 증가 및 등급 업데이트
     await conn.query(
-      "UPDATE users SET vote_participation_count = vote_participation_count + 1 WHERE id = ?",
+      "UPDATE users SET vote_participation_count = COALESCE(vote_participation_count, 0) + 1 WHERE id = ?",
       [user_id]
     );
 
