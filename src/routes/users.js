@@ -101,10 +101,11 @@ router.put("/border/:userId", async (req, res) => {
     const [userRows] = await pool.query("SELECT tier FROM users WHERE id = ?", [userId]);
     if (userRows.length === 0) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
 
-    const userTier = userRows[0].tier;
-    const tiers = ["bronze", "silver", "gold", "platinum", "diamond"];
+    const storedTier = userRows[0].tier || "bronze";
+    const userTier = storedTier === "diamond" ? "master" : storedTier;
+    const tiers = ["bronze", "silver", "gold", "platinum", "master"];
     const userTierIndex = tiers.indexOf(userTier);
-    const selectedTierIndex = tiers.indexOf(border);
+    const selectedTierIndex = tiers.indexOf(border === "diamond" ? "master" : border);
 
     if (border !== null && selectedTierIndex > userTierIndex) {
       return res.status(403).json({ message: "해당 테두리를 장착할 권한이 없습니다." });
