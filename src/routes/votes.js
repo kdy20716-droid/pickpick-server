@@ -22,6 +22,23 @@ router.post("/:postId", async (req, res) => {
   try {
     await conn.beginTransaction();
 
+    // [추가] 만료 여부 확인
+    const [posts] = await conn.query(
+      "SELECT expires_at FROM vote_posts WHERE id = ?",
+      [postId]
+    );
+
+    if (posts.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, message: "게시글을 찾을 수 없습니다." });
+    }
+
+    const expiresAt = new Date(posts[0].expires_at);
+    if (expiresAt <= new Date()) {
+      await conn.rollback();
+      return res.status(400).json({ success: false, message: "이미 만료된 투표입니다." });
+    }
+
     // 1. 투표 기록 추가 (이미 투표했으면 ER_DUP_ENTRY 에러 발생)
     await conn.query(
       "INSERT INTO vote_records (post_id, user_id, selected_side) VALUES (?, ?, ?)",
@@ -122,6 +139,7 @@ router.get("/:postId/comments", async (req, res) => {
     const [comments] = await pool.query(
       `SELECT c.*, COALESCE(u.name, u.nickname) as author,
               u.profile_image as author_image,
+              u.selected_border as author_border,
               (SELECT COUNT(*) FROM comment_likes WHERE comment_id = c.id) as likes
        FROM comments c 
        JOIN users u ON c.user_id = u.id 
@@ -208,7 +226,7 @@ router.post("/:postId/comments", async (req, res) => {
 
     // 추가된 댓글 정보를 바로 반환 (작성자 이름 및 프로필 이미지 포함)
     const [newComment] = await pool.query(
-      `SELECT c.*, COALESCE(u.name, u.nickname) as author, u.profile_image as author_image
+      `SELECT c.*, COALESCE(u.name, u.nickname) as author, u.profile_image as author_image, u.selected_border as author_border
        FROM comments c 
        JOIN users u ON c.user_id = u.id 
        WHERE c.id = ?`,

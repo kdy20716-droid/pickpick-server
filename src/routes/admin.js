@@ -207,4 +207,47 @@ router.delete("/comments/:commentId", checkAdmin, async (req, res) => {
   }
 });
 
+// --- 유저 관리 API ---
+
+// 유저 목록 조회 : GET /admin/users
+router.get("/users", checkAdmin, async (req, res) => {
+  try {
+    const [users] = await pool.query(
+      "SELECT id, nickname, name, email, tier, selected_border, unlocked_borders, role, created_at FROM users ORDER BY created_at DESC"
+    );
+    res.status(200).json({ success: true, users });
+  } catch (error) {
+    console.error("유저 목록 조회 에러:", error);
+    res.status(500).json({ message: "유저 목록을 불러오는 중 에러가 발생했습니다." });
+  }
+});
+
+// 유저 티어/권한 수정 : PUT /admin/users/:userId/status
+router.put("/users/:userId/status", checkAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { tier, role, unlocked_borders } = req.body;
+
+    let updateFields = [];
+    let params = [];
+
+    if (tier) { updateFields.push("tier = ?"); params.push(tier); }
+    if (role) { updateFields.push("role = ?"); params.push(role); }
+    if (unlocked_borders !== undefined) { 
+      updateFields.push("unlocked_borders = ?"); 
+      params.push(unlocked_borders); 
+    }
+
+    if (updateFields.length === 0) return res.status(400).json({ message: "수정할 내용이 없습니다." });
+
+    params.push(userId);
+    await pool.query(`UPDATE users SET ${updateFields.join(", ")} WHERE id = ?`, params);
+
+    res.status(200).json({ success: true, message: "유저 정보가 수정되었습니다." });
+  } catch (error) {
+    console.error("유저 수정 에러:", error);
+    res.status(500).json({ message: "유저 수정 중 에러가 발생했습니다." });
+  }
+});
+
 export default router;

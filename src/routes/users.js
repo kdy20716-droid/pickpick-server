@@ -101,6 +101,38 @@ router.put("/profile/:userId", upload.any(), async (req, res) => {
   }
 });
 
+// 프로필 테두리 변경 API : PUT /users/border/:userId
+router.put("/border/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { border } = req.body;
+
+    // 티어별 해금 로직 (프론트에서도 처리하지만 서버에서도 한 번 더 검증)
+    const [userRows] = await pool.query("SELECT tier FROM users WHERE id = ?", [userId]);
+    if (userRows.length === 0) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+
+    const userTier = userRows[0].tier;
+    const tiers = ["bronze", "silver", "gold", "platinum", "diamond"];
+    const userTierIndex = tiers.indexOf(userTier);
+    const selectedTierIndex = tiers.indexOf(border);
+
+    if (border !== null && selectedTierIndex > userTierIndex) {
+      return res.status(403).json({ message: "해당 테두리를 장착할 권한이 없습니다." });
+    }
+
+    await pool.query("UPDATE users SET selected_border = ? WHERE id = ?", [border, userId]);
+
+    res.status(200).json({
+      success: true,
+      message: "테두리가 변경되었습니다.",
+      selected_border: border
+    });
+  } catch (error) {
+    console.error("테두리 변경 에러:", error);
+    res.status(500).json({ message: "테두리 변경에 실패했습니다." });
+  }
+});
+
 // 회원가입 API : POST /users/signin
 router.post("/signin", async (req, res) => {
   try {
@@ -254,6 +286,10 @@ router.post("/login", async (req, res) => {
       profile_image: user.profile_image,
       role: user.role || "user",
       created_at: user.created_at,
+      selected_border: user.selected_border,
+      tier: user.tier,
+      grade: user.grade,
+      unlocked_borders: user.unlocked_borders,
     };
 
     console.log("🎉 로그인 성공 - 클라이언트로 전송되는 정보:", userInfo);

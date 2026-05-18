@@ -12,6 +12,18 @@ const upload = multer({ storage: storage });
 // 1. 투표 게시글 목록 조회 API (검색, 카테고리, 정렬 포함) http://localhost:4000/votelist
 router.get("/", async (req, res) => {
   try {
+    // [추가] 만료된 투표 결과 집계 (winner_side 설정)
+    // 1일이 지난 투표 중 아직 winner_side가 결정되지 않은 게시글들을 찾아 업데이트
+    await pool.query(`
+      UPDATE vote_posts 
+      SET winner_side = CASE 
+        WHEN candidate_a_count > candidate_b_count THEN 'A'
+        WHEN candidate_b_count > candidate_a_count THEN 'B'
+        ELSE 'DRAW'
+      END
+      WHERE expires_at <= NOW() AND winner_side IS NULL
+    `);
+
     const {
       keyword,
       category,
@@ -193,8 +205,8 @@ router.post(
 
       const query = `
       INSERT INTO vote_posts 
-      (author_id, category, title, candidate_a_name, candidate_a_image, candidate_b_name, candidate_b_image) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      (author_id, category, title, candidate_a_name, candidate_a_image, candidate_b_name, candidate_b_image, expires_at) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 1 DAY))
     `;
       const values = [
         author_id,
@@ -422,9 +434,19 @@ router.get("/init-db", async (req, res) => {
         candidate_b_count INT DEFAULT 0,
         view_count INT DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP NULL,
+        winner_side ENUM('A', 'B', 'DRAW') NULL,
         FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
+
+    // expires_at 컬럼 추가 시도
+    try { await pool.query("ALTER TABLE vote_posts ADD COLUMN expires_at TIMESTAMP NULL"); } catch (e) {}
+    // winner_side 컬럼 추가 시도
+    try { await pool.query("ALTER TABLE vote_posts ADD COLUMN winner_side ENUM('A', 'B', 'DRAW') NULL"); } catch (e) {}
+    
+    // 기존 데이터 만료 시간 설정 (1일 뒤)
+    try { await pool.query("UPDATE vote_posts SET expires_at = DATE_ADD(NOW(), INTERVAL 1 DAY) WHERE expires_at IS NULL"); } catch (e) {}
 
     // 4. 투표 기록 테이블
     await pool.query(`
