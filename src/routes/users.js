@@ -268,6 +268,10 @@ router.post("/login", async (req, res) => {
       post_creation_count: user.post_creation_count || 0,
       vote_win_count: user.vote_win_count || 0,
       created_at: user.created_at,
+      selected_border: user.selected_border,
+      tier: user.tier,
+      grade: user.grade,
+      unlocked_borders: user.unlocked_borders,
     };
 
     console.log("🎉 로그인 성공 - 클라이언트로 전송되는 정보:", userInfo);

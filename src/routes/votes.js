@@ -205,7 +205,7 @@ router.post("/:postId/comments", async (req, res) => {
 
     // 추가된 댓글 정보를 바로 반환 (작성자 이름 및 프로필 이미지 포함)
     const [newComment] = await pool.query(
-      `SELECT c.*, COALESCE(u.name, u.nickname) as author, u.profile_image as author_image
+      `SELECT c.*, COALESCE(u.name, u.nickname) as author, u.profile_image as author_image, u.selected_border as author_border
        FROM comments c 
        JOIN users u ON c.user_id = u.id 
        WHERE c.id = ?`,
