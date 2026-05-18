@@ -216,46 +216,84 @@ router.post("/login", async (req, res) => {
     }
 
     // 1. 닉네임(아이디)으로 사용자 조회
-    console.log("🔍 DB에서 사용자 조회:", username);
+    console.log("🔍 DB에서 사용자 조회 시도:", username);
     const [users] = await pool.query("SELECT * FROM users WHERE nickname = ?", [
       username,
     ]);
 
     // 2. 사용자가 존재하지 않는 경우
     if (users.length === 0) {
-      console.log("❌ 사용자를 찾을 수 없음:", username);
+      console.log("❌ 사용자를 찾을 수 없음 (401):", username);
       return res
         .status(401)
         .json({ message: "아이디 또는 비밀번호가 일치하지 않습니다." });
     }
 
     const user = users[0];
-    console.log("✅ DB에서 조회된 사용자:", {
-      id: user.id,
-      nickname: user.nickname,
-      name: user.name,
-      email: user.email,
-      birth: user.birth,
-      gender: user.gender,
-      nationality: user.nationality,
-      profile_image: user.profile_image,
-      role: user.role,
-    });
+    console.log("✅ DB에서 사용자 발견:", user.nickname);
 
     // 3. 비밀번호 비교
-    console.log("🔐 비밀번호 검증 중...");
+    console.log("🔐 비밀번호 검증 시작...");
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      console.log("❌ 비밀번호 불일치");
+      console.log("❌ 비밀번호 불일치 (401):", username);
       return res
         .status(401)
         .json({ message: "아이디 또는 비밀번호가 일치하지 않습니다." });
     }
 
-    console.log("✅ 비밀번호 일치");
+    console.log("✅ 비밀번호 검증 통과");
 
-    // 4. 로그인 성공 - JWT 토큰 생성
+    // 4. 통계 데이터 동기화 (기존 기록 바탕으로 숫자 복구)
+    try {
+      // 투표 참여 횟수 집계
+      const [[{ participation_count }]] = await pool.query(
+        "SELECT COUNT(*) as participation_count FROM vote_records WHERE user_id = ?",
+        [user.id]
+      );
+
+      // 게시글 생성 횟수 집계
+      const [[{ creation_count }]] = await pool.query(
+        "SELECT COUNT(*) as creation_count FROM vote_posts WHERE author_id = ?",
+        [user.id]
+      );
+
+      // 투표 우승 횟수 집계 (이미 winner_side가 결정된 게시물 중 내가 맞춘 것)
+      const [[{ win_count }]] = await pool.query(
+        `SELECT COUNT(*) as win_count 
+         FROM vote_records vr
+         JOIN vote_posts vp ON vr.post_id = vp.id
+         WHERE vr.user_id = ? AND vp.winner_side = vr.selected_side`,
+        [user.id]
+      );
+
+      console.log(`📊 [Sync] User ${user.nickname} Statistics:`);
+      console.log(`   - Participation: ${participation_count}`);
+      console.log(`   - Creations: ${creation_count}`);
+      console.log(`   - Wins: ${win_count}`);
+
+      // DB 업데이트
+      await pool.query(
+        "UPDATE users SET vote_participation_count = ?, post_creation_count = ?, vote_win_count = ? WHERE id = ?",
+        [participation_count, creation_count, win_count, user.id]
+      );
+
+      // 등급 동기화
+      const { updateGrade } = await import("../utils/grade.js");
+      await updateGrade(user.id);
+
+      // 업데이트된 최신 사용자 정보 다시 가져오기
+      const [updatedUsers] = await pool.query("SELECT * FROM users WHERE id = ?", [user.id]);
+      user.vote_participation_count = updatedUsers[0].vote_participation_count;
+      user.post_creation_count = updatedUsers[0].post_creation_count;
+      user.vote_win_count = updatedUsers[0].vote_win_count;
+      user.grade = updatedUsers[0].grade;
+    } catch (syncError) {
+      console.error("❌ 통계 동기화 에러 (로그인은 계속 진행):", syncError);
+    }
+
+    // 5. 로그인 성공 - JWT 토큰 생성
     const token = jwt.sign(
       { userId: user.id, nickname: user.nickname, role: user.role || "user" },
       process.env.SECRET_KEY,
@@ -273,10 +311,13 @@ router.post("/login", async (req, res) => {
       nationality: user.nationality,
       profile_image: user.profile_image,
       role: user.role || "user",
+      grade: user.grade || "UnRanked",
+      vote_participation_count: user.vote_participation_count || 0,
+      post_creation_count: user.post_creation_count || 0,
+      vote_win_count: user.vote_win_count || 0,
       created_at: user.created_at,
       selected_border: user.selected_border,
-      tier: user.tier,
-      grade: user.grade,
+      tier: user.tier || "bronze",
       unlocked_borders: user.unlocked_borders,
     };
 
