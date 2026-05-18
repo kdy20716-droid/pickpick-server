@@ -401,7 +401,17 @@ router.put(
         values.push(candidate_b_type);
       }
 
-      // 이미지 처리
+      // 유튜브 ID나 기존 이미지 경로 처리
+      if (req.body.candidate_a_image && !req.files?.["candidate_a_image"]) {
+        updateFields.push("candidate_a_image = ?");
+        values.push(req.body.candidate_a_image);
+      }
+      if (req.body.candidate_b_image && !req.files?.["candidate_b_image"]) {
+        updateFields.push("candidate_b_image = ?");
+        values.push(req.body.candidate_b_image);
+      }
+
+      // 이미지 파일 처리
       if (req.files) {
         // 기존 이미지 정보 조회 (삭제를 위함)
         const [oldPost] = await pool.query(
