@@ -339,11 +339,19 @@ router.post("/login", async (req, res) => {
       console.log(`   - Creations: ${creation_count}`);
       console.log(`   - Wins: ${win_count}`);
 
-      // DB 업데이트
-      await pool.query(
-        "UPDATE users SET vote_participation_count = ?, post_creation_count = ?, vote_win_count = ? WHERE id = ?",
-        [participation_count, creation_count, win_count, user.id]
-      );
+      // 어드민은 통계 업데이트를 건너뛰거나 최소값을 보장하여 마스터 등급 유지
+      if (user.role === "admin") {
+        await pool.query(
+          "UPDATE users SET vote_participation_count = GREATEST(vote_participation_count, ?), post_creation_count = GREATEST(post_creation_count, ?), vote_win_count = GREATEST(vote_win_count, ?) WHERE id = ?",
+          [participation_count, creation_count, win_count, user.id]
+        );
+      } else {
+        // 일반 유저는 실제 통계로 업데이트
+        await pool.query(
+          "UPDATE users SET vote_participation_count = ?, post_creation_count = ?, vote_win_count = ? WHERE id = ?",
+          [participation_count, creation_count, win_count, user.id]
+        );
+      }
 
       // 등급 동기화
       const { updateGrade } = await import("../utils/grade.js");
