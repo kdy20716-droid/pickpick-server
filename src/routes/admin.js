@@ -226,13 +226,12 @@ router.get("/users", checkAdmin, async (req, res) => {
 router.put("/users/:userId/status", checkAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
-    const { tier, role, unlocked_borders } = req.body;
+    const { tier, unlocked_borders } = req.body;
 
     let updateFields = [];
     let params = [];
 
     if (tier) { updateFields.push("tier = ?"); params.push(tier); }
-    if (role) { updateFields.push("role = ?"); params.push(role); }
     if (unlocked_borders !== undefined) { 
       updateFields.push("unlocked_borders = ?"); 
       params.push(unlocked_borders); 
