@@ -231,7 +231,18 @@ router.put("/users/:userId/status", checkAdmin, async (req, res) => {
     let updateFields = [];
     let params = [];
 
-    if (tier) { updateFields.push("tier = ?"); params.push(tier); }
+    if (tier) { 
+      updateFields.push("tier = ?"); 
+      params.push(tier);
+      
+      // 티어 변경 시 등급(grade)과 선택된 테두리(selected_border)도 함께 동기화
+      updateFields.push("grade = ?");
+      params.push(tier.toUpperCase());
+      
+      updateFields.push("selected_border = ?");
+      params.push(tier);
+    }
+    
     if (unlocked_borders !== undefined) { 
       updateFields.push("unlocked_borders = ?"); 
       params.push(unlocked_borders); 

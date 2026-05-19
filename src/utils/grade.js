@@ -74,10 +74,10 @@ export const updateGrade = async (userId) => {
     if (newGrade !== currentGrade) {
       const newTier = newGrade.toLowerCase();
       await pool.query(
-        "UPDATE users SET grade = ?, tier = ? WHERE id = ?",
-        [newGrade, newTier, userId]
+        "UPDATE users SET grade = ?, tier = ?, selected_border = ? WHERE id = ?",
+        [newGrade, newTier, newTier, userId]
       );
-      console.log(`[Grade Update] User ${userId}: ${currentGrade} -> ${newGrade} (tier: ${newTier})`);
+      console.log(`[Grade Update] User ${userId}: ${currentGrade} -> ${newGrade} (tier: ${newTier}, border: ${newTier})`);
     }
   } catch (error) {
     console.error(`[Grade Update Error] User ${userId}:`, error);
