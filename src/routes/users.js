@@ -6,7 +6,50 @@ import multer from "multer";
 import { uploadToCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
 import { sendEmail } from "../utils/email.js";
 
+import authMiddleware from "../middleware/auth.js";
+
 const router = express.Router();
+
+// 내 정보 조회 API : GET /users/me
+router.get("/me", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const [users] = await pool.query("SELECT * FROM users WHERE id = ?", [userId]);
+
+    if (users.length === 0) {
+      return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+    }
+
+    const user = users[0];
+    delete user.password;
+
+    res.status(200).json({
+      success: true,
+      user: {
+        id: user.id,
+        nickname: user.nickname,
+        name: user.name,
+        email: user.email,
+        birth: user.birth,
+        gender: user.gender,
+        nationality: user.nationality,
+        profile_image: user.profile_image,
+        role: user.role || "user",
+        grade: user.grade || "UnRanked",
+        vote_participation_count: user.vote_participation_count || 0,
+        post_creation_count: user.post_creation_count || 0,
+        vote_win_count: user.vote_win_count || 0,
+        created_at: user.created_at,
+        selected_border: user.selected_border,
+        tier: user.tier || "bronze",
+        unlocked_borders: user.unlocked_borders,
+      },
+    });
+  } catch (error) {
+    console.error("내 정보 조회 에러:", error);
+    res.status(500).json({ message: "내 정보를 불러오는 중 오류가 발생했습니다." });
+  }
+});
 
 // 메모리 스토리지로 변경 (Cloudinary로 바로 업로드하기 위함)
 const storage = multer.memoryStorage();
@@ -19,7 +62,7 @@ router.put(
   async (req, res) => {
     try {
       const { userId } = req.params;
-      const { name, email, birth, gender, nationality } = req.body;
+      const { name, email, birth, gender, nationality, remove_profile_image } = req.body;
       let profile_image = null;
 
       if (req.file) {
@@ -32,6 +75,13 @@ router.put(
 
         // 2. Cloudinary에 새 파일 업로드
         profile_image = await uploadToCloudinary(req.file.buffer, req.file.originalname);
+      } else if (remove_profile_image === "true") {
+        // 기존 이미지가 있으면 삭제하고 DB에서는 null로 설정
+        const [oldUsers] = await pool.query("SELECT profile_image FROM users WHERE id = ?", [userId]);
+        if (oldUsers.length > 0 && oldUsers[0].profile_image) {
+          await deleteFromCloudinary(oldUsers[0].profile_image);
+        }
+        profile_image = null;
       }
 
       // 업데이트할 필드들을 동적으로 구성
@@ -58,7 +108,9 @@ router.put(
         updateFields.push("nationality = ?");
         params.push(nationality);
       }
-      if (profile_image) {
+      
+      // profile_image가 null인 경우(삭제 요청)와 문자열인 경우(새 이미지) 모두 처리
+      if (profile_image !== null || remove_profile_image === "true") {
         updateFields.push("profile_image = ?");
         params.push(profile_image);
       }
