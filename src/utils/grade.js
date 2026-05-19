@@ -7,9 +7,13 @@ import pool from "../db.js";
 export const updateGrade = async (userId) => {
   console.log(`[Grade] Checking grade for user ${userId}...`);
   try {
-    // 1. 사용자의 현재 통계 조회
+    // 1. 사용자의 현재 통계 및 업적 조회
     const [users] = await pool.query(
-      "SELECT vote_participation_count, post_creation_count, vote_win_count, grade, role FROM users WHERE id = ?",
+      `SELECT u.vote_participation_count, u.post_creation_count, u.vote_win_count, u.grade, u.role,
+              ma.top3_count, ma.top1_count
+       FROM users u
+       LEFT JOIN monthly_achievements ma ON u.id = ma.user_id AND ma.year_month = DATE_FORMAT(NOW(), '%Y-%m')
+       WHERE u.id = ?`,
       [userId]
     );
 
@@ -23,19 +27,31 @@ export const updateGrade = async (userId) => {
     const vote_participation_count = user.vote_participation_count || 0;
     const post_creation_count = user.post_creation_count || 0;
     const vote_win_count = user.vote_win_count || 0;
+    const top3_count = user.top3_count || 0;
+    const top1_count = user.top1_count || 0;
     const currentGrade = user.grade || "UnRanked";
     
-    console.log(`[Grade] User stats: v=${vote_participation_count}, p=${post_creation_count}, w=${vote_win_count}, role=${role}, current=${currentGrade}`);
+    console.log(`[Grade] User stats: v=${vote_participation_count}, p=${post_creation_count}, w=${vote_win_count}, role=${role}, top3=${top3_count}, top1=${top1_count}, current=${currentGrade}`);
 
     let newGrade = "UnRanked";
 
-    // 어드민은 무조건 MASTER
+    // 어드민은 무조건 CHALLENGER (또는 최고 등급)
     if (role === "admin") {
-      newGrade = "MASTER";
+      newGrade = "CHALLENGER";
     }
     // 2. 등급 기준 적용 (상위 등급부터 확인)
-    else if (vote_win_count >= 1000 && post_creation_count >= 500) {
+    
+    // CHALLENGER: 한 달간 랭킹 1위 3회 이상
+    else if (top1_count >= 3) {
+      newGrade = "CHALLENGER";
+    }
+    // MASTER: 한 달간 랭킹 1,2,3위 3회 이상 (다이아 이상 요건은 이미 랭킹에 올랐다면 충족된 것으로 간주하거나 명시적으로 추가 가능)
+    else if (top3_count >= 3) {
       newGrade = "MASTER";
+    }
+    // DIAMOND: 투표 우승 1000회 이상 AND 게시글 생성 500회 이상
+    else if (vote_win_count >= 1000 && post_creation_count >= 500) {
+      newGrade = "DIAMOND";
     }
     // PLATINUM: 투표 우승 500회 이상 AND 게시글 생성 200회 이상
     else if (vote_win_count >= 500 && post_creation_count >= 200) {

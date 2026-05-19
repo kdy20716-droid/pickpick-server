@@ -49,6 +49,19 @@ async function initializeDatabase() {
     await conn.query(`ALTER TABLE vote_posts ADD COLUMN IF NOT EXISTS candidate_a_type VARCHAR(20) DEFAULT 'image'`);
     await conn.query(`ALTER TABLE vote_posts ADD COLUMN IF NOT EXISTS candidate_b_type VARCHAR(20) DEFAULT 'image'`);
     
+    // 월간 업적 테이블 추가 (마스터, 챌린저 티어용)
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS monthly_achievements (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        year_month VARCHAR(7) NOT NULL, -- YYYY-MM 형식
+        top3_count INT DEFAULT 0,
+        top1_count INT DEFAULT 0,
+        UNIQUE KEY user_month (user_id, year_month),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+    
     console.log("✅ [DB] Database schema initialized");
   } catch (error) {
     console.error("⚠️ [DB] Database initialization failed:", error.message);
