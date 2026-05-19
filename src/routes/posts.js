@@ -34,6 +34,10 @@ function toUnixTimestamp(date) {
   return Math.floor(date.getTime() / 1000);
 }
 
+function isTruthy(value) {
+  return value === true || value === "true" || value === "1" || value === 1;
+}
+
 // 1. 투표 게시글 목록 조회 API (검색, 카테고리, 정렬 포함) http://localhost:4000/votelist
 router.get("/", async (req, res) => {
   try {
@@ -189,9 +193,10 @@ router.get("/", async (req, res) => {
 // 2. 랭킹 데이터 조회 API (투표수 정렬)
 router.get("/ranking", async (req, res) => {
   try {
-    const query = `
+      const query = `
       SELECT p.*, (p.candidate_a_count + p.candidate_b_count) as total_votes
       FROM vote_posts p
+      WHERE p.expires_at IS NOT NULL
       ORDER BY total_votes DESC
       LIMIT 10
     `;
@@ -238,6 +243,7 @@ router.post(
         candidate_a_type,
         candidate_b_type,
         expires_at,
+        is_indefinite,
       } = req.body;
 
       // Cloudinary에 파일 업로드 및 URL 반환
@@ -265,19 +271,23 @@ router.post(
           .json({ success: false, message: "필수 항목이 누락되었습니다." });
       }
 
-      const parsedExpiresAt = parseVoteExpiresAt(expires_at);
-      if (parsedExpiresAt.error) {
-        return res.status(400).json({ success: false, message: parsedExpiresAt.error });
-      }
+      const shouldBeIndefinite = isTruthy(is_indefinite);
+      let expiresAtValue = null;
+      if (!shouldBeIndefinite) {
+        const parsedExpiresAt = parseVoteExpiresAt(expires_at);
+        if (parsedExpiresAt.error) {
+          return res.status(400).json({ success: false, message: parsedExpiresAt.error });
+        }
 
-      const expiresAtValue = parsedExpiresAt.date
-        ? toUnixTimestamp(parsedExpiresAt.date)
-        : null;
+        expiresAtValue = parsedExpiresAt.date
+          ? toUnixTimestamp(parsedExpiresAt.date)
+          : null;
+      }
 
       const query = `
       INSERT INTO vote_posts 
       (author_id, category, title, candidate_a_name, candidate_a_image, candidate_a_type, candidate_b_name, candidate_b_image, candidate_b_type, expires_at) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(FROM_UNIXTIME(?), DATE_ADD(NOW(), INTERVAL 1 DAY)))
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, IF(?, NULL, COALESCE(FROM_UNIXTIME(?), DATE_ADD(NOW(), INTERVAL 1 DAY))))
     `;
       const values = [
         author_id,
@@ -289,6 +299,7 @@ router.post(
         candidate_b_name,
         candidate_b_image,
         candidate_b_type || "image",
+        shouldBeIndefinite ? 1 : 0,
         expiresAtValue,
       ];
 
@@ -385,6 +396,7 @@ router.put(
         candidate_a_type,
         candidate_b_type,
         expires_at,
+        is_indefinite,
       } = req.body;
 
       // 작성자 확인
@@ -435,7 +447,9 @@ router.put(
       }
 
       // 유튜브 ID나 기존 이미지 경로 처리
-      if (expires_at) {
+      if (isTruthy(is_indefinite)) {
+        updateFields.push("expires_at = NULL");
+      } else if (expires_at) {
         const parsedExpiresAt = parseVoteExpiresAt(expires_at);
         if (parsedExpiresAt.error) {
           return res.status(400).json({ success: false, message: parsedExpiresAt.error });
@@ -625,7 +639,7 @@ router.get("/init-db", async (req, res) => {
     // 기존 데이터 만료 시간 설정 (1일 뒤)
     try {
       await pool.query(
-        "UPDATE vote_posts SET expires_at = DATE_ADD(NOW(), INTERVAL 1 DAY) WHERE expires_at IS NULL",
+        "SELECT 1",
       );
     } catch (e) {}
 

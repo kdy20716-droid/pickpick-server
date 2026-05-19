@@ -38,8 +38,8 @@ router.post("/:postId", async (req, res) => {
       return res.status(404).json({ success: false, message: "게시글을 찾을 수 없습니다." });
     }
 
-    const expiresAt = new Date(posts[0].expires_at);
-    if (expiresAt <= new Date()) {
+    const expiresAt = posts[0].expires_at ? new Date(posts[0].expires_at) : null;
+    if (expiresAt && expiresAt <= new Date()) {
       await conn.rollback();
       return res.status(400).json({ success: false, message: "이미 만료된 투표입니다." });
     }
