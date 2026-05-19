@@ -34,23 +34,23 @@ export const updateGrade = async (userId) => {
     console.log(`[Grade] User stats: v=${vote_participation_count}, p=${post_creation_count}, w=${vote_win_count}, role=${role}, top3=${top3_count}, top1=${top1_count}, current=${currentGrade}`);
 
     let newGrade = "UnRanked";
+    const isDiamondEligible = vote_win_count >= 1000 && post_creation_count >= 500;
 
-    // 어드민은 무조건 CHALLENGER (또는 최고 등급)
+    // 어드민은 무조건 CHALLENGER
     if (role === "admin") {
       newGrade = "CHALLENGER";
     }
-    // 2. 등급 기준 적용 (상위 등급부터 확인)
-    
-    // CHALLENGER: 한 달간 랭킹 1위 3회 이상
-    else if (top1_count >= 3) {
+    // CHALLENGER: 마스터 달성 후 한 달간 랭킹 1위 3회 이상
+    // (다이아 요건 + top3 요건 + top1 요건을 모두 충족해야 함)
+    else if (isDiamondEligible && top3_count >= 3 && top1_count >= 3) {
       newGrade = "CHALLENGER";
     }
-    // MASTER: 한 달간 랭킹 1,2,3위 3회 이상 (다이아 이상 요건은 이미 랭킹에 올랐다면 충족된 것으로 간주하거나 명시적으로 추가 가능)
-    else if (top3_count >= 3) {
+    // MASTER: 다이아 등급 달성 후 한 달간 랭킹 1,2,3위 3회 이상
+    else if (isDiamondEligible && top3_count >= 3) {
       newGrade = "MASTER";
     }
     // DIAMOND: 투표 우승 1000회 이상 AND 게시글 생성 500회 이상
-    else if (vote_win_count >= 1000 && post_creation_count >= 500) {
+    else if (isDiamondEligible) {
       newGrade = "DIAMOND";
     }
     // PLATINUM: 투표 우승 500회 이상 AND 게시글 생성 200회 이상
