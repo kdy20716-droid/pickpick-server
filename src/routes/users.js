@@ -476,6 +476,38 @@ router.post("/reset-password", async (req, res) => {
   }
 });
 
+// 비밀번호 수정 API (현재 비밀번호 확인 포함) : POST /users/change-password
+router.post("/change-password", async (req, res) => {
+  const { userId, currentPassword, newPassword } = req.body;
+
+  if (!userId || !currentPassword || !newPassword) {
+    return res.status(400).json({ message: "모든 필드를 입력해주세요." });
+  }
+
+  try {
+    // 1. 사용자 조회
+    const [users] = await pool.query("SELECT password FROM users WHERE id = ?", [userId]);
+    if (users.length === 0) {
+      return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+    }
+
+    // 2. 현재 비밀번호 확인
+    const isPasswordValid = await bcrypt.compare(currentPassword, users[0].password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: "현재 비밀번호가 일치하지 않습니다." });
+    }
+
+    // 3. 새 비밀번호 암호화 및 업데이트
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await pool.query("UPDATE users SET password = ? WHERE id = ?", [hashedPassword, userId]);
+
+    res.status(200).json({ success: true, message: "비밀번호가 성공적으로 변경되었습니다." });
+  } catch (error) {
+    console.error("❌ 비밀번호 수정 에러:", error);
+    res.status(500).json({ message: "비밀번호 수정에 실패했습니다." });
+  }
+});
+
 // 이메일 인증 코드 발송 API : POST /users/send-email-code
 router.post("/send-email-code", async (req, res) => {
   const { email } = req.body;
