@@ -13,6 +13,27 @@ const router = express.Router();
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
+function parseVoteExpiresAt(value) {
+  if (!value) {
+    return { date: null };
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return { error: "마감시간 형식이 올바르지 않습니다." };
+  }
+
+  if (date <= new Date()) {
+    return { error: "마감시간은 현재 이후로 설정해주세요." };
+  }
+
+  return { date };
+}
+
+function toUnixTimestamp(date) {
+  return Math.floor(date.getTime() / 1000);
+}
+
 // 1. 투표 게시글 목록 조회 API (검색, 카테고리, 정렬 포함) http://localhost:4000/votelist
 router.get("/", async (req, res) => {
   try {
@@ -216,6 +237,7 @@ router.post(
         candidate_b_name,
         candidate_a_type,
         candidate_b_type,
+        expires_at,
       } = req.body;
 
       // Cloudinary에 파일 업로드 및 URL 반환
@@ -243,10 +265,19 @@ router.post(
           .json({ success: false, message: "필수 항목이 누락되었습니다." });
       }
 
+      const parsedExpiresAt = parseVoteExpiresAt(expires_at);
+      if (parsedExpiresAt.error) {
+        return res.status(400).json({ success: false, message: parsedExpiresAt.error });
+      }
+
+      const expiresAtValue = parsedExpiresAt.date
+        ? toUnixTimestamp(parsedExpiresAt.date)
+        : null;
+
       const query = `
       INSERT INTO vote_posts 
       (author_id, category, title, candidate_a_name, candidate_a_image, candidate_a_type, candidate_b_name, candidate_b_image, candidate_b_type, expires_at) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 1 DAY))
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(FROM_UNIXTIME(?), DATE_ADD(NOW(), INTERVAL 1 DAY)))
     `;
       const values = [
         author_id,
@@ -258,6 +289,7 @@ router.post(
         candidate_b_name,
         candidate_b_image,
         candidate_b_type || "image",
+        expiresAtValue,
       ];
 
       const [result] = await pool.execute(query, values);
@@ -352,6 +384,7 @@ router.put(
         candidate_b_name,
         candidate_a_type,
         candidate_b_type,
+        expires_at,
       } = req.body;
 
       // 작성자 확인
@@ -402,6 +435,16 @@ router.put(
       }
 
       // 유튜브 ID나 기존 이미지 경로 처리
+      if (expires_at) {
+        const parsedExpiresAt = parseVoteExpiresAt(expires_at);
+        if (parsedExpiresAt.error) {
+          return res.status(400).json({ success: false, message: parsedExpiresAt.error });
+        }
+
+        updateFields.push("expires_at = FROM_UNIXTIME(?)");
+        values.push(toUnixTimestamp(parsedExpiresAt.date));
+      }
+
       if (req.body.candidate_a_image && !req.files?.["candidate_a_image"]) {
         updateFields.push("candidate_a_image = ?");
         values.push(req.body.candidate_a_image);
