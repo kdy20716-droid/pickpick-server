@@ -4,6 +4,15 @@ import { updateGrade } from "../utils/grade.js";
 
 const router = express.Router();
 
+async function getPostLikeCount(postId) {
+  const [countResult] = await pool.query(
+    "SELECT COUNT(*) as like_count FROM likes WHERE post_id = ?",
+    [postId],
+  );
+
+  return Number(countResult[0]?.like_count ?? 0);
+}
+
 // 투표하기 API (POST /api/votes/:postId)
 router.post("/:postId", async (req, res) => {
   const { postId } = req.params;
@@ -103,13 +112,35 @@ router.post("/:postId", async (req, res) => {
 // 좋아요 토글 API (POST /api/votes/:postId/like)
 router.post("/:postId/like", async (req, res) => {
   const { postId } = req.params;
-  const { user_id } = req.body;
+  const { user_id, liked } = req.body;
 
   if (!user_id) {
     return res.status(400).json({ success: false, message: "user_id가 필요합니다." });
   }
 
   try {
+    if (typeof liked === "boolean") {
+      if (liked) {
+        await pool.query(
+          "INSERT IGNORE INTO likes (post_id, user_id) VALUES (?, ?)",
+          [postId, user_id],
+        );
+      } else {
+        await pool.query(
+          "DELETE FROM likes WHERE post_id = ? AND user_id = ?",
+          [postId, user_id],
+        );
+      }
+
+      const likeCount = await getPostLikeCount(postId);
+      return res.status(200).json({
+        success: true,
+        liked,
+        like_count: likeCount,
+        message: liked ? "좋아요 추가" : "좋아요 취소",
+      });
+    }
+
     // 이미 좋아요를 눌렀는지 확인
     const [existingLike] = await pool.query(
       "SELECT * FROM likes WHERE post_id = ? AND user_id = ?",
@@ -119,11 +150,13 @@ router.post("/:postId/like", async (req, res) => {
     if (existingLike.length > 0) {
       // 이미 좋아요를 눌렀으면 취소 (삭제)
       await pool.query("DELETE FROM likes WHERE post_id = ? AND user_id = ?", [postId, user_id]);
-      return res.status(200).json({ success: true, liked: false, message: "좋아요 취소" });
+      const likeCount = await getPostLikeCount(postId);
+      return res.status(200).json({ success: true, liked: false, like_count: likeCount, message: "좋아요 취소" });
     } else {
       // 좋아요 추가
       await pool.query("INSERT INTO likes (post_id, user_id) VALUES (?, ?)", [postId, user_id]);
-      return res.status(200).json({ success: true, liked: true, message: "좋아요 추가" });
+      const likeCount = await getPostLikeCount(postId);
+      return res.status(200).json({ success: true, liked: true, like_count: likeCount, message: "좋아요 추가" });
     }
   } catch (error) {
     console.error("좋아요 처리 에러:", error);
