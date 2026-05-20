@@ -6,27 +6,65 @@ import multer from "multer";
 import { uploadToCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
 import { sendEmail } from "../utils/email.js";
 
+import authMiddleware from "../middleware/auth.js";
+
 const router = express.Router();
+
+// 내 정보 조회 API : GET /users/me
+router.get("/me", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const [users] = await pool.query("SELECT * FROM users WHERE id = ?", [userId]);
+
+    if (users.length === 0) {
+      return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+    }
+
+    const user = users[0];
+    delete user.password;
+
+    res.status(200).json({
+      success: true,
+      user: {
+        id: user.id,
+        nickname: user.nickname,
+        name: user.name,
+        email: user.email,
+        birth: user.birth,
+        gender: user.gender,
+        nationality: user.nationality,
+        profile_image: user.profile_image,
+        role: user.role || "user",
+        grade: user.grade || "UnRanked",
+        vote_participation_count: user.vote_participation_count || 0,
+        post_creation_count: user.post_creation_count || 0,
+        vote_win_count: user.vote_win_count || 0,
+        created_at: user.created_at,
+        selected_border: user.selected_border,
+        tier: user.tier || "bronze",
+        unlocked_borders: user.unlocked_borders,
+      },
+    });
+  } catch (error) {
+    console.error("내 정보 조회 에러:", error);
+    res.status(500).json({ message: "내 정보를 불러오는 중 오류가 발생했습니다." });
+  }
+});
 
 // 메모리 스토리지로 변경 (Cloudinary로 바로 업로드하기 위함)
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 // 프로필 정보 및 사진 업데이트 API : PUT /users/profile/:userId
-router.put("/profile/:userId", upload.any(), async (req, res) => {
+router.put("/profile/:userId", upload.single("profile_image"), async (req, res) => {
   try {
-    console.log("req.headers:", req.headers);
-    console.log("req.body:", req.body);
-    console.log("req.files:", req.files);
     const { userId } = req.params;
     const { name, email, birth, gender, nationality, remove_profile_image } =
       req.body;
-
-    let profile_image = null;
-    const uploadedFile = req.file || req.files?.[0];
     const shouldRemoveProfileImage = remove_profile_image === "true";
+    let profile_image = null;
 
-    if (uploadedFile || shouldRemoveProfileImage) {
+    if (req.file || shouldRemoveProfileImage) {
       const [oldUsers] = await pool.query(
         "SELECT profile_image FROM users WHERE id = ?",
         [userId],
@@ -36,16 +74,15 @@ router.put("/profile/:userId", upload.any(), async (req, res) => {
       }
     }
 
-    if (uploadedFile) {
+    if (req.file) {
       profile_image = await uploadToCloudinary(
-        uploadedFile.buffer,
-        uploadedFile.originalname,
+        req.file.buffer,
+        req.file.originalname,
       );
     }
 
-    // 업데이트할 필드들을 동적으로 구성
-    let updateFields = [];
-    let params = [];
+    const updateFields = [];
+    const params = [];
 
     if (name !== undefined) {
       updateFields.push("name = ?");
@@ -67,11 +104,9 @@ router.put("/profile/:userId", upload.any(), async (req, res) => {
       updateFields.push("nationality = ?");
       params.push(nationality);
     }
-    if (profile_image) {
+    if (req.file || shouldRemoveProfileImage) {
       updateFields.push("profile_image = ?");
       params.push(profile_image);
-    } else if (shouldRemoveProfileImage) {
-      updateFields.push("profile_image = NULL");
     }
 
     if (updateFields.length === 0) {
@@ -83,7 +118,6 @@ router.put("/profile/:userId", upload.any(), async (req, res) => {
 
     await pool.query(query, params);
 
-    // 업데이트된 사용자 정보 조회
     const [users] = await pool.query("SELECT * FROM users WHERE id = ?", [
       userId,
     ]);
@@ -112,14 +146,14 @@ router.put("/border/:userId", async (req, res) => {
     if (userRows.length === 0) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
 
     const storedTier = (userRows[0].tier || "bronze").toLowerCase();
-    const userTier = storedTier === "diamond" ? "master" : storedTier;
+    const userTier = storedTier === "unranked" ? "bronze" : storedTier;
     
-    const tiers = ["bronze", "silver", "gold", "platinum", "master"];
+    const tiers = ["bronze", "silver", "gold", "platinum", "diamond", "master", "challenger"];
     const userTierIndex = tiers.indexOf(userTier);
     
     // 선택된 테두리 정규화
     const normalizedSelectedBorder = (border || "bronze").toLowerCase();
-    const selectedTier = normalizedSelectedBorder === "diamond" ? "master" : normalizedSelectedBorder;
+    const selectedTier = normalizedSelectedBorder;
     const selectedTierIndex = tiers.indexOf(selectedTier);
 
     // 어드민/픽 테두리는 별도 권한 체크 (현재는 어드민만 가능하게 하거나 unlocked_borders 체크 필요)
@@ -299,11 +333,19 @@ router.post("/login", async (req, res) => {
       console.log(`   - Creations: ${creation_count}`);
       console.log(`   - Wins: ${win_count}`);
 
-      // DB 업데이트
-      await pool.query(
-        "UPDATE users SET vote_participation_count = ?, post_creation_count = ?, vote_win_count = ? WHERE id = ?",
-        [participation_count, creation_count, win_count, user.id]
-      );
+      // 어드민은 통계 업데이트를 건너뛰거나 최소값을 보장하여 마스터 등급 유지
+      if (user.role === "admin") {
+        await pool.query(
+          "UPDATE users SET vote_participation_count = GREATEST(vote_participation_count, ?), post_creation_count = GREATEST(post_creation_count, ?), vote_win_count = GREATEST(vote_win_count, ?) WHERE id = ?",
+          [participation_count, creation_count, win_count, user.id]
+        );
+      } else {
+        // 일반 유저는 실제 통계로 업데이트
+        await pool.query(
+          "UPDATE users SET vote_participation_count = ?, post_creation_count = ?, vote_win_count = ? WHERE id = ?",
+          [participation_count, creation_count, win_count, user.id]
+        );
+      }
 
       // 등급 동기화
       const { updateGrade } = await import("../utils/grade.js");
@@ -446,6 +488,38 @@ router.post("/reset-password", async (req, res) => {
   } catch (error) {
     console.error("❌ 비밀번호 변경 에러:", error);
     res.status(500).json({ message: "비밀번호 변경에 실패했습니다." });
+  }
+});
+
+// 비밀번호 수정 API (현재 비밀번호 확인 포함) : POST /users/change-password
+router.post("/change-password", async (req, res) => {
+  const { userId, currentPassword, newPassword } = req.body;
+
+  if (!userId || !currentPassword || !newPassword) {
+    return res.status(400).json({ message: "모든 필드를 입력해주세요." });
+  }
+
+  try {
+    // 1. 사용자 조회
+    const [users] = await pool.query("SELECT password FROM users WHERE id = ?", [userId]);
+    if (users.length === 0) {
+      return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+    }
+
+    // 2. 현재 비밀번호 확인
+    const isPasswordValid = await bcrypt.compare(currentPassword, users[0].password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: "현재 비밀번호가 일치하지 않습니다." });
+    }
+
+    // 3. 새 비밀번호 암호화 및 업데이트
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await pool.query("UPDATE users SET password = ? WHERE id = ?", [hashedPassword, userId]);
+
+    res.status(200).json({ success: true, message: "비밀번호가 성공적으로 변경되었습니다." });
+  } catch (error) {
+    console.error("❌ 비밀번호 수정 에러:", error);
+    res.status(500).json({ message: "비밀번호 수정에 실패했습니다." });
   }
 });
 
