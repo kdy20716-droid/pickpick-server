@@ -46,8 +46,12 @@ export const uploadToCloudinary = async (buffer, filename) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       uploadOptions,
       (error, result) => {
-        if (error) return reject(error);
+        if (error) {
+          console.error("❌ Cloudinary Upload Stream Error:", error);
+          return reject(error);
+        }
         if (!result?.secure_url) {
+          console.error("❌ Cloudinary Upload Error: No secure_url in result", result);
           return reject(new Error("Cloudinary upload did not return a URL"));
         }
         resolve(result.secure_url);
