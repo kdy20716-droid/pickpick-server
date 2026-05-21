@@ -263,27 +263,31 @@ router.delete("/users/:userId", checkAdmin, async (req, res) => {
 // 신고 목록 조회 : GET /admin/reports?page=1&limit=30
 router.get("/reports", checkAdmin, async (req, res) => {
   try {
-    // 테이블 자동 생성 (없을 경우)
+    // 1. 테이블 존재 여부 및 컬럼 구조 강제 교정 (충돌 방지)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS reports (
         id INT AUTO_INCREMENT PRIMARY KEY,
         post_id INT,
         user_id INT,
         reason TEXT NOT NULL,
-        status ENUM('pending', 'resolved', 'ignored') DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (post_id) REFERENCES vote_posts(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     const { page = 1, limit = 30 } = req.query;
     const offset = (page - 1) * limit;
 
+    // 2. 전체 개수 조회
     const [countRows] = await pool.query("SELECT COUNT(*) as total FROM reports");
 
+    // 3. 목록 조회 (JOIN 시 데이터가 없는 경우를 대비해 LEFT JOIN 사용)
+    // u.nickname 대신 u.name을 고려하거나 COALESCE 사용
     const [reports] = await pool.query(
-      `SELECT r.*, u.nickname as reporter_nickname, vp.title as vote_title
+      `SELECT 
+        r.id, r.post_id, r.user_id, r.reason, r.status, r.created_at,
+        COALESCE(u.nickname, u.name, '탈퇴유저') as reporter_nickname,
+        COALESCE(vp.title, '삭제된 게시물') as vote_title
        FROM reports r
        LEFT JOIN users u ON r.user_id = u.id
        LEFT JOIN vote_posts vp ON r.post_id = vp.id
@@ -292,10 +296,18 @@ router.get("/reports", checkAdmin, async (req, res) => {
       [Number(limit), Number(offset)]
     );
 
-    res.status(200).json({ success: true, total: countRows[0].total, reports });
+    res.status(200).json({ 
+      success: true, 
+      total: countRows[0].total, 
+      reports 
+    });
   } catch (error) {
-    console.error("신고 목록 조회 에러:", error);
-    res.status(500).json({ message: "신고 목록을 불러오는 중 에러가 발생했습니다." });
+    console.error("신고 목록 조회 에러 상세:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "신고 목록을 불러오는 중 서버 에러가 발생했습니다.",
+      error: error.message 
+    });
   }
 });
 
