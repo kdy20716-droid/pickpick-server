@@ -89,12 +89,13 @@ async function initializeDatabase() {
     await conn.query(`
       CREATE TABLE IF NOT EXISTS reports (
         id BIGINT AUTO_INCREMENT PRIMARY KEY,
-        post_id BIGINT NOT NULL,
+        post_id BIGINT NULL,
+        post_title VARCHAR(255) NULL,
         user_id BIGINT NULL,
         reason TEXT NOT NULL,
         status ENUM('pending', 'resolved', 'ignored') DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (post_id) REFERENCES vote_posts(id) ON DELETE CASCADE,
+        FOREIGN KEY (post_id) REFERENCES vote_posts(id) ON DELETE SET NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
       )
     `);

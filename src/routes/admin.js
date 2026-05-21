@@ -367,23 +367,23 @@ router.delete("/banned-emails/:id", checkAdmin, async (req, res) => {
 router.get("/reports", checkAdmin, async (req, res) => {
   try {
     const [reports] = await pool.query(
-      `SELECT r.*, vp.title as vote_title, u.nickname as reporter_nickname
+      `SELECT r.*, 
+              COALESCE(vp.title, r.post_title) as vote_title, 
+              u.nickname as reporter_nickname
        FROM reports r
-       JOIN vote_posts vp ON r.post_id = vp.id
+       LEFT JOIN vote_posts vp ON r.post_id = vp.id
        LEFT JOIN users u ON r.user_id = u.id
-       ORDER BY r.created_at DESC`,
+       ORDER BY r.created_at DESC`
     );
 
     res.status(200).json({
       success: true,
       count: reports.length,
-      reports: reports,
+      reports: reports
     });
   } catch (error) {
     console.error("신고 목록 조회 에러:", error);
-    res
-      .status(500)
-      .json({ message: "신고 목록을 불러오는 중 에러가 발생했습니다." });
+    res.status(500).json({ message: "신고 목록을 불러오는 중 에러가 발생했습니다." });
   }
 });
 

@@ -13,9 +13,14 @@ router.post("/", async (req, res) => {
 
   try {
     console.log("📥 신고 데이터 수신:", { postId, userId, reason });
+    
+    // 게시물 제목 가져오기 (게시물이 삭제되어도 신고 내역을 유지하기 위해 미리 저장)
+    const [posts] = await pool.query("SELECT title FROM vote_posts WHERE id = ?", [postId]);
+    const postTitle = posts.length > 0 ? posts[0].title : "알 수 없는 게시물";
+
     const [result] = await pool.query(
-      "INSERT INTO reports (post_id, user_id, reason) VALUES (?, ?, ?)",
-      [postId, userId || null, reason]
+      "INSERT INTO reports (post_id, post_title, user_id, reason) VALUES (?, ?, ?, ?)",
+      [postId, postTitle, userId || null, reason]
     );
 
     res.status(201).json({ success: true, message: "신고가 접수되었습니다.", reportId: result.insertId });
