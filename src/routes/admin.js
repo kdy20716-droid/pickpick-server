@@ -295,4 +295,43 @@ router.delete("/users/:userId", checkAdmin, async (req, res) => {
   }
 });
 
+// --- 이메일 차단(BAN) 관리 API ---
+
+// 차단된 이메일 목록 조회 : GET /admin/banned-emails
+router.get("/banned-emails", checkAdmin, async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM banned_emails ORDER BY created_at DESC");
+    res.status(200).json({ success: true, bannedEmails: rows });
+  } catch (error) {
+    console.error("차단 이메일 조회 에러:", error);
+    res.status(500).json({ message: "차단 목록을 불러오는 중 에러가 발생했습니다." });
+  }
+});
+
+// 이메일 차단 추가 : POST /admin/banned-emails
+router.post("/banned-emails", checkAdmin, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "이메일을 입력해주세요." });
+
+    await pool.query("INSERT IGNORE INTO banned_emails (email) VALUES (?)", [email]);
+    res.status(201).json({ success: true, message: "이메일이 차단되었습니다." });
+  } catch (error) {
+    console.error("이메일 차단 추가 에러:", error);
+    res.status(500).json({ message: "이메일 차단 중 에러가 발생했습니다." });
+  }
+});
+
+// 이메일 차단 해제 : DELETE /admin/banned-emails/:id
+router.delete("/banned-emails/:id", checkAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query("DELETE FROM banned_emails WHERE id = ?", [id]);
+    res.status(200).json({ success: true, message: "이메일 차단이 해제되었습니다." });
+  } catch (error) {
+    console.error("이메일 차단 해제 에러:", error);
+    res.status(500).json({ message: "차단 해제 중 에러가 발생했습니다." });
+  }
+});
+
 export default router;
