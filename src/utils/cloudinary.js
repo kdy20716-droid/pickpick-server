@@ -37,8 +37,19 @@ export const uploadToCloudinary = async (buffer, filename) => {
   });
 
   return new Promise((resolve, reject) => {
+    // 환경 변수에서 검열 규칙을 가져옵니다 (예: cld_ai_content:my_rule_id)
+    const moderation = process.env.CLOUDINARY_MODERATION;
+    
+    const uploadOptions = { 
+      folder: "pickpick" 
+    };
+
+    if (moderation) {
+      uploadOptions.moderation = moderation;
+    }
+
     const uploadStream = cloudinary.uploader.upload_stream(
-      { folder: "pickpick" },
+      uploadOptions,
       (error, result) => {
         if (error) return reject(error);
         if (!result?.secure_url) {
