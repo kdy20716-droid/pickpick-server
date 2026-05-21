@@ -37,16 +37,11 @@ export const uploadToCloudinary = async (buffer, filename) => {
   });
 
   return new Promise((resolve, reject) => {
-    // 환경 변수에서 검열 규칙을 가져옵니다 (예: cld_ai_content:my_rule_id)
-    const moderation = process.env.CLOUDINARY_MODERATION;
-    
+    // 대시보드에서 설정한 프리셋(ml_default)을 사용하여 AI 검열/분석을 자동화합니다.
     const uploadOptions = { 
-      folder: "pickpick" 
+      folder: "pickpick",
+      upload_preset: "ml_default" 
     };
-
-    if (moderation) {
-      uploadOptions.moderation = moderation;
-    }
 
     const uploadStream = cloudinary.uploader.upload_stream(
       uploadOptions,
