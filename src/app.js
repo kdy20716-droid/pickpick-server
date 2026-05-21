@@ -14,6 +14,7 @@ import voteListRouter from "./routes/posts.js";
 import votesRouter from "./routes/votes.js";
 import mainRouter from "./routes/mainLogic.js";
 import adminRouter from "./routes/admin.js";
+import reportsRouter from "./routes/reports.js";
 
 const app = express();
 
@@ -60,17 +61,35 @@ async function initializeDatabase() {
   let conn;
   try {
     conn = await pool.getConnection();
-    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(100)`);
-    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(100)`);
-    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS birth VARCHAR(8)`);
-    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS gender VARCHAR(10)`);
-    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS nationality VARCHAR(10)`);
-    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image VARCHAR(255)`);
-    await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('user', 'admin') DEFAULT 'user'`);
+    await conn.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(100)`,
+    );
+    await conn.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(100)`,
+    );
+    await conn.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS birth VARCHAR(8)`,
+    );
+    await conn.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS gender VARCHAR(10)`,
+    );
+    await conn.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS nationality VARCHAR(10)`,
+    );
+    await conn.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image VARCHAR(255)`,
+    );
+    await conn.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('user', 'admin') DEFAULT 'user'`,
+    );
 
     // 미디어 타입 컬럼 추가
-    await conn.query(`ALTER TABLE vote_posts ADD COLUMN IF NOT EXISTS candidate_a_type VARCHAR(20) DEFAULT 'image'`);
-    await conn.query(`ALTER TABLE vote_posts ADD COLUMN IF NOT EXISTS candidate_b_type VARCHAR(20) DEFAULT 'image'`);
+    await conn.query(
+      `ALTER TABLE vote_posts ADD COLUMN IF NOT EXISTS candidate_a_type VARCHAR(20) DEFAULT 'image'`,
+    );
+    await conn.query(
+      `ALTER TABLE vote_posts ADD COLUMN IF NOT EXISTS candidate_b_type VARCHAR(20) DEFAULT 'image'`,
+    );
 
     // 월간 업적 테이블 추가 (마스터, 챌린저 티어용)
     await conn.query(`
@@ -84,6 +103,29 @@ async function initializeDatabase() {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
+
+    // 신고 테이블 추가 및 스키마 업데이트
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS reports (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        post_id BIGINT NULL,
+        post_title VARCHAR(255) NULL,
+        user_id BIGINT NULL,
+        reason TEXT NOT NULL,
+        status ENUM('pending', 'resolved', 'ignored') DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (post_id) REFERENCES vote_posts(id) ON DELETE SET NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+      )
+    `);
+
+    // 기존 테이블에 post_title 컬럼이 없는 경우 추가 (수동 체크로 더 확실하게)
+    const [columns] = await conn.query("SHOW COLUMNS FROM reports LIKE 'post_title'");
+    if (columns.length === 0) {
+      console.log("🛠️ [DB] reports 테이블에 post_title 컬럼 추가 중...");
+      await conn.query("ALTER TABLE reports ADD COLUMN post_title VARCHAR(255) NULL AFTER post_id");
+    }
+    await conn.query("ALTER TABLE reports MODIFY COLUMN post_id BIGINT NULL");
 
     console.log("✅ [DB] Database schema initialized");
   } catch (error) {
@@ -111,6 +153,7 @@ app.use("/votelist", voteListRouter);
 app.use("/api/votes", votesRouter);
 app.use("/main", mainRouter);
 app.use("/admin", adminRouter);
+app.use("/reports", reportsRouter);
 
 app.get("/ping", (req, res) => {
   res.status(200).send("pong");
@@ -122,7 +165,9 @@ app.get("/db-test", async (req, res) => {
     res.status(200).json({ success: true, message: "DB 연결 성공!", result });
   } catch (error) {
     console.error("❌ DB 연결 테스트 실패:", error);
-    res.status(500).json({ success: false, message: "DB 연결 실패", error: error.message });
+    res
+      .status(500)
+      .json({ success: false, message: "DB 연결 실패", error: error.message });
   }
 });
 
@@ -130,7 +175,9 @@ app.get("/test-mail-direct", async (req, res) => {
   const emailUser = process.env.EMAIL_USER;
 
   if (!emailUser) {
-    return res.status(500).json({ success: false, message: "EMAIL_USER 설정 누락" });
+    return res
+      .status(500)
+      .json({ success: false, message: "EMAIL_USER 설정 누락" });
   }
 
   try {
@@ -138,19 +185,19 @@ app.get("/test-mail-direct", async (req, res) => {
     const result = await sendEmail({
       to: emailUser,
       subject: "[PICKPICK] Brevo API 전환 테스트",
-      text: "Gmail SMTP 대신 Brevo API를 사용하여 전송된 메일입니다. 이제 DigitalOcean 서버에서도 안정적으로 발송됩니다."
+      text: "Gmail SMTP 대신 Brevo API를 사용하여 전송된 메일입니다. 이제 DigitalOcean 서버에서도 안정적으로 발송됩니다.",
     });
 
     res.json({
       success: true,
       message: "Brevo API 발송 성공!",
-      result
+      result,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       message: "Brevo API 발송 실패",
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -167,9 +214,9 @@ if (hasClientBuild) {
 
 app.use((err, req, res, next) => {
   console.error("🔥 [Global Error]:", err);
-  res.status(500).json({ 
-    message: "서버 내부 에러가 발생했습니다.", 
-    error: err.message
+  res.status(500).json({
+    message: "서버 내부 에러가 발생했습니다.",
+    error: err.message,
   });
 });
 

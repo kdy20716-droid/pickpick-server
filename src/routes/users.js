@@ -229,6 +229,19 @@ router.post("/signin", async (req, res) => {
         .json({ message: "이 이메일은 이미 회원가입되었습니다." });
     }
 
+    // [신규 추가] 이메일 차단(BAN) 여부 확인
+    const [bannedEmail] = await pool.query(
+      "SELECT * FROM banned_emails WHERE email = ?",
+      [email]
+    );
+
+    if (bannedEmail.length > 0) {
+      console.log("❌ 차단된 이메일 가입 시도:", email);
+      return res.status(403).json({ 
+        message: "차단된 이메일입니다. 해당 이메일로는 가입할 수 없습니다." 
+      });
+    }
+
     // 3. 비밀번호 암호화
     console.log("🔐 비밀번호 암호화 중...");
     const hashedPassword = await bcrypt.hash(pw, 10);
@@ -542,6 +555,18 @@ router.post("/send-email-code", async (req, res) => {
       return res.status(409).json({
         message: "이미 회원가입된 이메일입니다. 다른 이메일을 사용하거나 비밀번호 찾기를 이용해주세요.",
         isDuplicate: true
+      });
+    }
+
+    // [신규 추가] 이메일 차단(BAN) 여부 확인
+    const [bannedEmail] = await pool.query(
+      "SELECT * FROM banned_emails WHERE email = ?",
+      [email]
+    );
+
+    if (bannedEmail.length > 0) {
+      return res.status(403).json({ 
+        message: "차단된 이메일입니다. 해당 이메일로는 가입할 수 없습니다." 
       });
     }
 
