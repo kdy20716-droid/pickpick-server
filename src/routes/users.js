@@ -56,92 +56,84 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 // 프로필 정보 및 사진 업데이트 API : PUT /users/profile/:userId
-router.put(
-  "/profile/:userId",
-  upload.single("profile_image"),
-  async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const { name, email, birth, gender, nationality, remove_profile_image } = req.body;
-      let profile_image = null;
+router.put("/profile/:userId", upload.single("profile_image"), async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { name, email, birth, gender, nationality, remove_profile_image } =
+      req.body;
+    const shouldRemoveProfileImage = remove_profile_image === "true";
+    let profile_image = null;
 
-      if (req.file) {
-        // 0. 기존 이미지 정보 조회
-        const [oldUsers] = await pool.query("SELECT profile_image FROM users WHERE id = ?", [userId]);
-        if (oldUsers.length > 0 && oldUsers[0].profile_image) {
-          // 1. 기존 이미지가 있으면 Cloudinary에서 삭제
-          await deleteFromCloudinary(oldUsers[0].profile_image);
-        }
-
-        // 2. Cloudinary에 새 파일 업로드
-        profile_image = await uploadToCloudinary(req.file.buffer, req.file.originalname);
-      } else if (remove_profile_image === "true") {
-        // 기존 이미지가 있으면 삭제하고 DB에서는 null로 설정
-        const [oldUsers] = await pool.query("SELECT profile_image FROM users WHERE id = ?", [userId]);
-        if (oldUsers.length > 0 && oldUsers[0].profile_image) {
-          await deleteFromCloudinary(oldUsers[0].profile_image);
-        }
-        profile_image = null;
+    if (req.file || shouldRemoveProfileImage) {
+      const [oldUsers] = await pool.query(
+        "SELECT profile_image FROM users WHERE id = ?",
+        [userId],
+      );
+      if (oldUsers.length > 0 && oldUsers[0].profile_image) {
+        await deleteFromCloudinary(oldUsers[0].profile_image);
       }
-
-      // 업데이트할 필드들을 동적으로 구성
-      let updateFields = [];
-      let params = [];
-
-      if (name !== undefined) {
-        updateFields.push("name = ?");
-        params.push(name);
-      }
-      if (email !== undefined) {
-        updateFields.push("email = ?");
-        params.push(email);
-      }
-      if (birth !== undefined) {
-        updateFields.push("birth = ?");
-        params.push(birth);
-      }
-      if (gender !== undefined) {
-        updateFields.push("gender = ?");
-        params.push(gender);
-      }
-      if (nationality !== undefined) {
-        updateFields.push("nationality = ?");
-        params.push(nationality);
-      }
-      
-      // profile_image가 null인 경우(삭제 요청)와 문자열인 경우(새 이미지) 모두 처리
-      if (profile_image !== null || remove_profile_image === "true") {
-        updateFields.push("profile_image = ?");
-        params.push(profile_image);
-      }
-
-      if (updateFields.length === 0) {
-        return res.status(400).json({ message: "수정할 정보가 없습니다." });
-      }
-
-      const query = `UPDATE users SET ${updateFields.join(", ")} WHERE id = ?`;
-      params.push(userId);
-
-      await pool.query(query, params);
-
-      // 업데이트된 사용자 정보 조회
-      const [users] = await pool.query("SELECT * FROM users WHERE id = ?", [
-        userId,
-      ]);
-      const updatedUser = users[0];
-      delete updatedUser.password;
-
-      res.status(200).json({
-        success: true,
-        message: "프로필이 업데이트되었습니다.",
-        user: updatedUser,
-      });
-    } catch (error) {
-      console.error("프로필 업데이트 에러:", error);
-      res.status(500).json({ message: "프로필 업데이트에 실패했습니다." });
     }
-  },
-);
+
+    if (req.file) {
+      profile_image = await uploadToCloudinary(
+        req.file.buffer,
+        req.file.originalname,
+      );
+    }
+
+    const updateFields = [];
+    const params = [];
+
+    if (name !== undefined) {
+      updateFields.push("name = ?");
+      params.push(name);
+    }
+    if (email !== undefined) {
+      updateFields.push("email = ?");
+      params.push(email);
+    }
+    if (birth !== undefined) {
+      updateFields.push("birth = ?");
+      params.push(birth);
+    }
+    if (gender !== undefined) {
+      updateFields.push("gender = ?");
+      params.push(gender);
+    }
+    if (nationality !== undefined) {
+      updateFields.push("nationality = ?");
+      params.push(nationality);
+    }
+    if (req.file || shouldRemoveProfileImage) {
+      updateFields.push("profile_image = ?");
+      params.push(profile_image);
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ message: "수정할 정보가 없습니다." });
+    }
+
+    const query = `UPDATE users SET ${updateFields.join(", ")} WHERE id = ?`;
+    params.push(userId);
+
+    await pool.query(query, params);
+
+    const [users] = await pool.query("SELECT * FROM users WHERE id = ?", [
+      userId,
+    ]);
+    const updatedUser = users[0];
+    delete updatedUser.password;
+
+    res.status(200).json({
+      success: true,
+      message: "프로필이 업데이트되었습니다.",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("프로필 업데이트 에러:", error);
+    res.status(500).json({ message: "프로필 업데이트에 실패했습니다." });
+  }
+});
 
 // 프로필 테두리 변경 API : PUT /users/border/:userId
 router.put("/border/:userId", async (req, res) => {
@@ -283,7 +275,8 @@ router.post("/signin", async (req, res) => {
 // 로그인 API : POST /users/login
 router.post("/login", async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const username = String(req.body.username || "").trim();
+    const password = String(req.body.password || "");
 
     console.log("🔑 로그인 요청 받음:", { username });
 
@@ -294,11 +287,12 @@ router.post("/login", async (req, res) => {
         .json({ message: "아이디와 비밀번호를 입력해주세요." });
     }
 
-    // 1. 닉네임(아이디)으로 사용자 조회
-    console.log("🔍 DB에서 사용자 조회 시도:", username);
-    const [users] = await pool.query("SELECT * FROM users WHERE nickname = ?", [
-      username,
-    ]);
+    // 1. 닉네임(아이디) 또는 이메일로 사용자 조회
+    console.log("🔍 DB에서 사용자 조회:", username);
+    const [users] = await pool.query(
+      "SELECT * FROM users WHERE nickname = ? OR email = ? LIMIT 1",
+      [username, username],
+    );
 
     // 2. 사용자가 존재하지 않는 경우
     if (users.length === 0) {
@@ -410,6 +404,11 @@ router.post("/login", async (req, res) => {
 
     console.log("🎉 로그인 성공 - 클라이언트로 전송되는 정보:", userInfo);
 
+    // last_login 업데이트
+    await pool.query("UPDATE users SET last_login = NOW() WHERE id = ?", [
+      user.id,
+    ]);
+
     res.status(200).json({
       message: "로그인 성공",
       user: userInfo,
@@ -431,37 +430,45 @@ router.post("/logout", (req, res) => {
 
 // 임시 비밀번호(인증 코드) 발송 API : POST /users/send-temp-password
 router.post("/send-temp-password", async (req, res) => {
-  const { email } = req.body;
+  const email = String(req.body.email || "").trim();
 
   if (!email) {
     return res.status(400).json({ message: "이메일을 입력해주세요." });
   }
 
   try {
-    // 1. 가입된 이메일인지 확인
-    const [existingUser] = await pool.query("SELECT * FROM users WHERE email = ?", [email]);
-    if (existingUser.length === 0) {
-      return res.status(404).json({ message: "가입되지 않은 이메일입니다." });
+    const [users] = await pool.query("SELECT id FROM users WHERE email = ?", [
+      email,
+    ]);
+
+    if (users.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "가입된 이메일을 찾을 수 없습니다." });
     }
 
-    // 2. 6자리 랜덤 코드 생성
-    const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // 임시 비밀번호 생성 및 DB 반영
+    const tempPassword = Math.random().toString(36).slice(2, 10);
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
     // 3. 이메일 전송 (Brevo)
     console.log(`📮 [${email}]로 임시 비밀번호 전송 시도 중 (Brevo)...`);
     await sendEmail({
       to: email,
-      subject: "[PICKPICK] 비밀번호 찾기 인증 코드 발송",
-      text: `요청하신 인증 코드는 [ ${tempCode} ] 입니다.\n해당 코드를 화면에 입력하여 비밀번호를 변경해주세요.`,
+      subject: "[PICKPICK] 임시 비밀번호 발송",
+      text: `요청하신 임시 비밀번호는 [ ${tempPassword} ] 입니다.\n로그인 후 비밀번호를 변경해주세요.`,
     });
+    await pool.query("UPDATE users SET password = ? WHERE email = ?", [
+      hashedPassword,
+      email,
+    ]);
     console.log("✅ 임시 비밀번호 발송 성공!");
-    
-    res.status(200).json({ message: "인증 코드가 발송되었습니다.", code: tempCode });
+    res.status(200).json({ message: "임시 비밀번호가 발송되었습니다." });
   } catch (error) {
     console.error("❌ 임시 비밀번호 발송 에러:", error);
-    res.status(500).json({ 
-      message: "이메일 발송에 실패했습니다. (Brevo)", 
-      error: error.message 
+    res.status(500).json({
+      message: "임시 비밀번호 발송에 실패했습니다. (Brevo)",
+      error: error.message,
     });
   }
 });
@@ -471,18 +478,26 @@ router.post("/reset-password", async (req, res) => {
   const { email, newPassword } = req.body;
 
   if (!email || !newPassword) {
-    return res.status(400).json({ message: "이메일과 새 비밀번호를 모두 입력해주세요." });
+    return res
+      .status(400)
+      .json({ message: "이메일과 새 비밀번호를 모두 입력해주세요." });
   }
 
   try {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    const [result] = await pool.query("UPDATE users SET password = ? WHERE email = ?", [hashedPassword, email]);
+    const [result] = await pool.query(
+      "UPDATE users SET password = ? WHERE email = ?",
+      [hashedPassword, email],
+    );
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
     }
 
-    res.status(200).json({ success: true, message: "비밀번호가 성공적으로 변경되었습니다." });
+    res.status(200).json({
+      success: true,
+      message: "비밀번호가 성공적으로 변경되었습니다.",
+    });
   } catch (error) {
     console.error("❌ 비밀번호 변경 에러:", error);
     res.status(500).json({ message: "비밀번호 변경에 실패했습니다." });
@@ -575,12 +590,15 @@ router.post("/send-email-code", async (req, res) => {
       console.error("❌ 이메일 전송 에러 (Brevo):", emailError);
       res.status(500).json({
         message: "이메일 서버 전송 실패. (Brevo)",
-        error: emailError.message
+        error: emailError.message,
       });
     }
   } catch (error) {
     console.error("❌ 서버 에러:", error);
-    res.status(500).json({ message: "서버 오류가 발생했습니다.", error: error.message });
+    res.status(500).json({
+      message: "서버 오류가 발생했습니다.",
+      error: error.message,
+    });
   }
 });
 
@@ -647,10 +665,15 @@ router.delete("/account/:userId", async (req, res) => {
     const { userId } = req.params;
 
     // 1. 사용자 정보(프로필 이미지) 조회
-    const [users] = await pool.query("SELECT profile_image FROM users WHERE id = ?", [userId]);
-    
+    const [users] = await pool.query(
+      "SELECT profile_image FROM users WHERE id = ?",
+      [userId],
+    );
+
     if (users.length === 0) {
-      return res.status(404).json({ success: false, message: "사용자를 찾을 수 없습니다." });
+      return res
+        .status(404)
+        .json({ success: false, message: "사용자를 찾을 수 없습니다." });
     }
 
     // 2. Cloudinary에서 프로필 이미지 삭제
@@ -661,10 +684,42 @@ router.delete("/account/:userId", async (req, res) => {
     // 3. DB에서 사용자 삭제 (ON DELETE CASCADE로 인해 연관된 데이터도 함께 삭제됨)
     await pool.query("DELETE FROM users WHERE id = ?", [userId]);
 
-    res.status(200).json({ success: true, message: "회원 탈퇴와 이미지가 정상적으로 처리되었습니다." });
+    res.status(200).json({
+      success: true,
+      message: "회원 탈퇴와 이미지가 정상적으로 처리되었습니다.",
+    });
   } catch (error) {
     console.error("회원 탈퇴 에러:", error);
-    res.status(500).json({ success: false, message: "서버 에러가 발생했습니다." });
+    res
+      .status(500)
+      .json({ success: false, message: "서버 에러가 발생했습니다." });
+  }
+});
+
+// 로그인 기록 조회 API : GET /users/login-history/:userId
+router.get("/login-history/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // 사용자의 last_login 가져오기
+    const [users] = await pool.query(
+      "SELECT last_login FROM users WHERE id = ?",
+      [userId],
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+    }
+
+    const lastLogin = users[0].last_login;
+
+    res.status(200).json({
+      success: true,
+      lastLogin: lastLogin,
+    });
+  } catch (error) {
+    console.error("로그인 기록 조회 에러:", error);
+    res.status(500).json({ message: "서버 에러가 발생했습니다." });
   }
 });
 

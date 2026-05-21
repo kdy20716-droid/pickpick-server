@@ -1,11 +1,10 @@
 import "dotenv/config";
-import express from "express"; 
+// const express = require("express"); // 옛날 문법
+import express from "express"; // ES 문법 (자바스크립트 최신문법)
 import cors from "cors";
 import pool from "./db.js";
 import path from "path";
 import fs from "fs";
-import dns from "dns";
-import { promisify } from "util";
 
 import { sendEmail } from "./utils/email.js";
 
@@ -13,21 +12,22 @@ import { sendEmail } from "./utils/email.js";
 import usersRouter from "./routes/users.js";
 import voteListRouter from "./routes/posts.js";
 import votesRouter from "./routes/votes.js";
-import mainRouter from "./routes/mainLogic.js"
+import mainRouter from "./routes/mainLogic.js";
 import adminRouter from "./routes/admin.js";
 
-const lookup = promisify(dns.lookup);
 const app = express();
 
 console.log("🚀 [System] 서버 초기화 시작...");
 
 // CORS 설정
-app.use(cors({
-  origin: ["https://pickpick.dev", "http://localhost:5173", "http://localhost:5174"], 
-  methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: ["https://pickpick.dev", "http://localhost:5173", "http://localhost:5174"],
+    methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  }),
+);
 
 app.use(express.json());
 
@@ -44,11 +44,11 @@ async function initializeDatabase() {
     await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS nationality VARCHAR(10)`);
     await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image VARCHAR(255)`);
     await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('user', 'admin') DEFAULT 'user'`);
-    
+
     // 미디어 타입 컬럼 추가
     await conn.query(`ALTER TABLE vote_posts ADD COLUMN IF NOT EXISTS candidate_a_type VARCHAR(20) DEFAULT 'image'`);
     await conn.query(`ALTER TABLE vote_posts ADD COLUMN IF NOT EXISTS candidate_b_type VARCHAR(20) DEFAULT 'image'`);
-    
+
     // 월간 업적 테이블 추가 (마스터, 챌린저 티어용)
     await conn.query(`
       CREATE TABLE IF NOT EXISTS monthly_achievements (
@@ -61,7 +61,7 @@ async function initializeDatabase() {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
-    
+
     console.log("✅ [DB] Database schema initialized");
   } catch (error) {
     console.error("⚠️ [DB] Database initialization failed:", error.message);
@@ -86,7 +86,7 @@ if (hasClientBuild) {
 app.use("/users", usersRouter);
 app.use("/votelist", voteListRouter);
 app.use("/api/votes", votesRouter);
-app.use("/main", mainRouter)
+app.use("/main", mainRouter);
 app.use("/admin", adminRouter);
 
 app.get("/ping", (req, res) => {
