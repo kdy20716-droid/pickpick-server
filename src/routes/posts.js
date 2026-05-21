@@ -312,14 +312,22 @@ router.post(
         expiresAtValue,
       ];
 
+      console.log("📝 투표 생성 시도:", { query, values });
       const [result] = await pool.execute(query, values);
+      console.log("✅ 투표 생성 완료, ID:", result.insertId);
 
       // 사용자 게시글 생성 횟수 증가 및 등급 업데이트
-      await pool.query(
-        "UPDATE users SET post_creation_count = COALESCE(post_creation_count, 0) + 1 WHERE id = ?",
-        [author_id],
-      );
-      await updateGrade(author_id);
+      try {
+        await pool.query(
+          "UPDATE users SET post_creation_count = COALESCE(post_creation_count, 0) + 1 WHERE id = ?",
+          [author_id],
+        );
+        console.log("📈 작성자 게시글 수 업데이트 완료");
+        await updateGrade(author_id);
+        console.log("🥇 작성자 등급 업데이트 완료");
+      } catch (gradeError) {
+        console.error("⚠️ 등급 업데이트 중 오류(무시가능):", gradeError);
+      }
 
       res.status(201).json({
         success: true,
@@ -327,11 +335,12 @@ router.post(
         post_id: result.insertId,
       });
     } catch (error) {
-      console.error("게시글 생성 에러:", error);
+      console.error("❌ 게시글 생성 에러 상세:", error);
       res.status(500).json({
         success: false,
         message: "서버 오류로 게시글 생성에 실패했습니다.",
         error: error.message,
+        stack: error.stack
       });
     }
   },

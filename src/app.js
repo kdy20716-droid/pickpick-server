@@ -64,13 +64,18 @@ async function initializeDatabase() {
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('user', 'admin') DEFAULT 'user'`,
     );
 
-    // 미디어 타입 컬럼 추가
-    await conn.query(
-      `ALTER TABLE vote_posts ADD COLUMN IF NOT EXISTS candidate_a_type VARCHAR(20) DEFAULT 'image'`,
-    );
-    await conn.query(
-      `ALTER TABLE vote_posts ADD COLUMN IF NOT EXISTS candidate_b_type VARCHAR(20) DEFAULT 'image'`,
-    );
+    // 미디어 타입 컬럼 추가 (수동 체크로 변경)
+    const [votePostCols] = await conn.query("SHOW COLUMNS FROM vote_posts");
+    const colNames = votePostCols.map(c => c.Field);
+    
+    if (!colNames.includes('candidate_a_type')) {
+      console.log("🛠️ [DB] vote_posts 테이블에 candidate_a_type 컬럼 추가 중...");
+      await conn.query("ALTER TABLE vote_posts ADD COLUMN candidate_a_type VARCHAR(20) DEFAULT 'image' AFTER candidate_a_image");
+    }
+    if (!colNames.includes('candidate_b_type')) {
+      console.log("🛠️ [DB] vote_posts 테이블에 candidate_b_type 컬럼 추가 중...");
+      await conn.query("ALTER TABLE vote_posts ADD COLUMN candidate_b_type VARCHAR(20) DEFAULT 'image' AFTER candidate_b_image");
+    }
 
     // 월간 업적 테이블 추가 (마스터, 챌린저 티어용)
     await conn.query(`
