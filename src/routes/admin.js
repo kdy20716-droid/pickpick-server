@@ -300,6 +300,15 @@ router.delete("/users/:userId", checkAdmin, async (req, res) => {
 // 차단된 이메일 목록 조회 : GET /admin/banned-emails
 router.get("/banned-emails", checkAdmin, async (req, res) => {
   try {
+    // 테이블이 없는 경우를 대비해 자동 생성 시도
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS banned_emails (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        email VARCHAR(100) NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     const [rows] = await pool.query("SELECT * FROM banned_emails ORDER BY created_at DESC");
     res.status(200).json({ success: true, bannedEmails: rows });
   } catch (error) {
