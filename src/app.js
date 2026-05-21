@@ -85,7 +85,7 @@ async function initializeDatabase() {
       )
     `);
 
-    // 신고 테이블 추가
+    // 신고 테이블 추가 및 스키마 업데이트
     await conn.query(`
       CREATE TABLE IF NOT EXISTS reports (
         id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -99,6 +99,14 @@ async function initializeDatabase() {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
       )
     `);
+
+    // 기존 테이블에 post_title 컬럼이 없는 경우 추가 (수동 체크로 더 확실하게)
+    const [columns] = await conn.query("SHOW COLUMNS FROM reports LIKE 'post_title'");
+    if (columns.length === 0) {
+      console.log("🛠️ [DB] reports 테이블에 post_title 컬럼 추가 중...");
+      await conn.query("ALTER TABLE reports ADD COLUMN post_title VARCHAR(255) NULL AFTER post_id");
+    }
+    await conn.query("ALTER TABLE reports MODIFY COLUMN post_id BIGINT NULL");
 
     console.log("✅ [DB] Database schema initialized");
   } catch (error) {
