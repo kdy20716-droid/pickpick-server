@@ -107,6 +107,18 @@ CREATE TABLE IF NOT EXISTS notifications (
     FOREIGN KEY (post_id) REFERENCES vote_posts(id) ON DELETE CASCADE
 );
 
+-- 9. 신고 테이블
+CREATE TABLE IF NOT EXISTS reports (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    post_id BIGINT NOT NULL,
+    user_id BIGINT NULL,
+    reason TEXT NOT NULL,
+    status ENUM('pending', 'resolved', 'ignored') DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (post_id) REFERENCES vote_posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
 -- =====================================================================
 -- 💾 현재까지 저장된 데이터 백업 (INSERT 문)
 -- =====================================================================

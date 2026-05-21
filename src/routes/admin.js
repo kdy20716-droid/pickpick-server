@@ -15,7 +15,7 @@ const checkAdmin = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.SECRET_KEY);
-    if (decoded.role !== 'admin') {
+    if (decoded.role !== "admin") {
       return res.status(403).json({ message: "관리자 권한이 필요합니다." });
     }
 
@@ -23,7 +23,9 @@ const checkAdmin = async (req, res, next) => {
     next();
   } catch (error) {
     console.error("Admin Check Error:", error);
-    return res.status(401).json({ message: "유효하지 않은 토큰입니다.", error: error.message });
+    return res
+      .status(401)
+      .json({ message: "유효하지 않은 토큰입니다.", error: error.message });
   }
 };
 
@@ -34,7 +36,9 @@ router.post("/send-verification", checkAdmin, async (req, res) => {
     const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
     const adminEmail = "kdy20716@gmail.com";
 
-    console.log(`📮 관리자 인증 메일 전송 시도 중 (Brevo)... (대상: ${adminEmail})`);
+    console.log(
+      `📮 관리자 인증 메일 전송 시도 중 (Brevo)... (대상: ${adminEmail})`,
+    );
     await sendEmail({
       to: adminEmail,
       subject: "[PICKPICK] 관리자 페이지 2차 인증 코드",
@@ -45,13 +49,13 @@ router.post("/send-verification", checkAdmin, async (req, res) => {
     res.status(200).json({
       success: true,
       message: "관리자 이메일로 인증 코드가 발송되었습니다.",
-      code: tempCode
+      code: tempCode,
     });
   } catch (error) {
     console.error("❌ 관리자 인증 코드 발송 에러 상세:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: "인증 코드 발송 중 에러가 발생했습니다. (Brevo)",
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -73,13 +77,13 @@ router.get("/votes/search", checkAdmin, async (req, res) => {
        JOIN users u ON vp.author_id = u.id
        WHERE vp.title LIKE ? OR vp.candidate_a_name LIKE ? OR vp.candidate_b_name LIKE ?
        ORDER BY vp.created_at DESC`,
-      [searchTerm, searchTerm, searchTerm]
+      [searchTerm, searchTerm, searchTerm],
     );
 
     res.status(200).json({
       success: true,
       count: votes.length,
-      votes: votes
+      votes: votes,
     });
   } catch (error) {
     console.error("투표 검색 에러:", error);
@@ -96,13 +100,13 @@ router.get("/votes", checkAdmin, async (req, res) => {
        FROM vote_posts vp
        JOIN users u ON vp.author_id = u.id
        ORDER BY vp.created_at DESC
-       LIMIT 100`
+       LIMIT 100`,
     );
 
     res.status(200).json({
       success: true,
       count: votes.length,
-      votes: votes
+      votes: votes,
     });
   } catch (error) {
     console.error("투표 조회 에러:", error);
@@ -118,7 +122,7 @@ router.delete("/votes/:voteId", checkAdmin, async (req, res) => {
     // 1. 삭제할 투표의 이미지 URL 조회
     const [votes] = await pool.query(
       "SELECT candidate_a_image, candidate_b_image FROM vote_posts WHERE id = ?",
-      [voteId]
+      [voteId],
     );
 
     if (votes.length === 0) {
@@ -136,14 +140,13 @@ router.delete("/votes/:voteId", checkAdmin, async (req, res) => {
     }
 
     // 3. DB에서 투표 삭제
-    const [result] = await pool.query(
-      "DELETE FROM vote_posts WHERE id = ?",
-      [voteId]
-    );
+    const [result] = await pool.query("DELETE FROM vote_posts WHERE id = ?", [
+      voteId,
+    ]);
 
     res.status(200).json({
       success: true,
-      message: "투표와 연관된 이미지가 삭제되었습니다."
+      message: "투표와 연관된 이미지가 삭제되었습니다.",
     });
   } catch (error) {
     console.error("투표 삭제 에러:", error);
@@ -175,7 +178,7 @@ router.get("/comments", checkAdmin, async (req, res) => {
     res.status(200).json({
       success: true,
       count: comments.length,
-      comments: comments
+      comments: comments,
     });
   } catch (error) {
     console.error("댓글 조회 에러:", error);
@@ -188,10 +191,9 @@ router.delete("/comments/:commentId", checkAdmin, async (req, res) => {
   try {
     const { commentId } = req.params;
 
-    const [result] = await pool.query(
-      "DELETE FROM comments WHERE id = ?",
-      [commentId]
-    );
+    const [result] = await pool.query("DELETE FROM comments WHERE id = ?", [
+      commentId,
+    ]);
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "댓글을 찾을 수 없습니다." });
@@ -199,7 +201,7 @@ router.delete("/comments/:commentId", checkAdmin, async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "댓글이 삭제되었습니다."
+      message: "댓글이 삭제되었습니다.",
     });
   } catch (error) {
     console.error("댓글 삭제 에러:", error);
@@ -213,12 +215,14 @@ router.delete("/comments/:commentId", checkAdmin, async (req, res) => {
 router.get("/users", checkAdmin, async (req, res) => {
   try {
     const [users] = await pool.query(
-      "SELECT id, nickname, name, email, tier, selected_border, unlocked_borders, role, created_at FROM users ORDER BY created_at DESC"
+      "SELECT id, nickname, name, email, tier, selected_border, unlocked_borders, role, created_at FROM users ORDER BY created_at DESC",
     );
     res.status(200).json({ success: true, users });
   } catch (error) {
     console.error("유저 목록 조회 에러:", error);
-    res.status(500).json({ message: "유저 목록을 불러오는 중 에러가 발생했습니다." });
+    res
+      .status(500)
+      .json({ message: "유저 목록을 불러오는 중 에러가 발생했습니다." });
   }
 });
 
@@ -231,29 +235,35 @@ router.put("/users/:userId/status", checkAdmin, async (req, res) => {
     let updateFields = [];
     let params = [];
 
-    if (tier) { 
-      updateFields.push("tier = ?"); 
+    if (tier) {
+      updateFields.push("tier = ?");
       params.push(tier);
-      
+
       // 티어 변경 시 등급(grade)과 선택된 테두리(selected_border)도 함께 동기화
       updateFields.push("grade = ?");
       params.push(tier.toUpperCase());
-      
+
       updateFields.push("selected_border = ?");
       params.push(tier);
     }
-    
-    if (unlocked_borders !== undefined) { 
-      updateFields.push("unlocked_borders = ?"); 
-      params.push(unlocked_borders); 
+
+    if (unlocked_borders !== undefined) {
+      updateFields.push("unlocked_borders = ?");
+      params.push(unlocked_borders);
     }
 
-    if (updateFields.length === 0) return res.status(400).json({ message: "수정할 내용이 없습니다." });
+    if (updateFields.length === 0)
+      return res.status(400).json({ message: "수정할 내용이 없습니다." });
 
     params.push(userId);
-    await pool.query(`UPDATE users SET ${updateFields.join(", ")} WHERE id = ?`, params);
+    await pool.query(
+      `UPDATE users SET ${updateFields.join(", ")} WHERE id = ?`,
+      params,
+    );
 
-    res.status(200).json({ success: true, message: "유저 정보가 수정되었습니다." });
+    res
+      .status(200)
+      .json({ success: true, message: "유저 정보가 수정되었습니다." });
   } catch (error) {
     console.error("유저 수정 에러:", error);
     res.status(500).json({ message: "유저 수정 중 에러가 발생했습니다." });
@@ -268,7 +278,7 @@ router.delete("/users/:userId", checkAdmin, async (req, res) => {
     // 1. 유저 정보 조회 (이미지 삭제 등을 위해)
     const [users] = await pool.query(
       "SELECT profile_image FROM users WHERE id = ?",
-      [userId]
+      [userId],
     );
 
     if (users.length === 0) {
@@ -287,7 +297,7 @@ router.delete("/users/:userId", checkAdmin, async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "유저가 강제 탈퇴 처리되었습니다."
+      message: "유저가 강제 탈퇴 처리되었습니다.",
     });
   } catch (error) {
     console.error("유저 강제 탈퇴 에러:", error);
@@ -309,11 +319,15 @@ router.get("/banned-emails", checkAdmin, async (req, res) => {
       )
     `);
 
-    const [rows] = await pool.query("SELECT * FROM banned_emails ORDER BY created_at DESC");
+    const [rows] = await pool.query(
+      "SELECT * FROM banned_emails ORDER BY created_at DESC",
+    );
     res.status(200).json({ success: true, bannedEmails: rows });
   } catch (error) {
     console.error("차단 이메일 조회 에러:", error);
-    res.status(500).json({ message: "차단 목록을 불러오는 중 에러가 발생했습니다." });
+    res
+      .status(500)
+      .json({ message: "차단 목록을 불러오는 중 에러가 발생했습니다." });
   }
 });
 
@@ -321,10 +335,15 @@ router.get("/banned-emails", checkAdmin, async (req, res) => {
 router.post("/banned-emails", checkAdmin, async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email) return res.status(400).json({ message: "이메일을 입력해주세요." });
+    if (!email)
+      return res.status(400).json({ message: "이메일을 입력해주세요." });
 
-    await pool.query("INSERT IGNORE INTO banned_emails (email) VALUES (?)", [email]);
-    res.status(201).json({ success: true, message: "이메일이 차단되었습니다." });
+    await pool.query("INSERT IGNORE INTO banned_emails (email) VALUES (?)", [
+      email,
+    ]);
+    res
+      .status(201)
+      .json({ success: true, message: "이메일이 차단되었습니다." });
   } catch (error) {
     console.error("이메일 차단 추가 에러:", error);
     res.status(500).json({ message: "이메일 차단 중 에러가 발생했습니다." });
@@ -336,10 +355,63 @@ router.delete("/banned-emails/:id", checkAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     await pool.query("DELETE FROM banned_emails WHERE id = ?", [id]);
-    res.status(200).json({ success: true, message: "이메일 차단이 해제되었습니다." });
+    res
+      .status(200)
+      .json({ success: true, message: "이메일 차단이 해제되었습니다." });
   } catch (error) {
     console.error("이메일 차단 해제 에러:", error);
     res.status(500).json({ message: "차단 해제 중 에러가 발생했습니다." });
+  }
+});
+// 신고 목록 조회 API : GET /admin/reports
+router.get("/reports", checkAdmin, async (req, res) => {
+  try {
+    const [reports] = await pool.query(
+      `SELECT r.*, vp.title as vote_title, u.nickname as reporter_nickname
+       FROM reports r
+       JOIN vote_posts vp ON r.post_id = vp.id
+       LEFT JOIN users u ON r.user_id = u.id
+       ORDER BY r.created_at DESC`,
+    );
+
+    res.status(200).json({
+      success: true,
+      count: reports.length,
+      reports: reports,
+    });
+  } catch (error) {
+    console.error("신고 목록 조회 에러:", error);
+    res
+      .status(500)
+      .json({ message: "신고 목록을 불러오는 중 에러가 발생했습니다." });
+  }
+});
+
+// 신고 상태 변경 API : PUT /admin/reports/:reportId/status
+router.put("/reports/:reportId/status", checkAdmin, async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const { status } = req.body;
+
+    if (!["pending", "resolved", "ignored"].includes(status)) {
+      return res.status(400).json({ message: "유효하지 않은 상태입니다." });
+    }
+
+    const [result] = await pool.query(
+      "UPDATE reports SET status = ? WHERE id = ?",
+      [status, reportId],
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "신고 건을 찾을 수 없습니다." });
+    }
+
+    res
+      .status(200)
+      .json({ success: true, message: "신고 상태가 변경되었습니다." });
+  } catch (error) {
+    console.error("신고 상태 변경 에러:", error);
+    res.status(500).json({ message: "신고 상태 변경 중 에러가 발생했습니다." });
   }
 });
 
