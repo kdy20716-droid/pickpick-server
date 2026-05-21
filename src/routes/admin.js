@@ -260,4 +260,39 @@ router.put("/users/:userId/status", checkAdmin, async (req, res) => {
   }
 });
 
+// 유저 강제 탈퇴 API : DELETE /admin/users/:userId
+router.delete("/users/:userId", checkAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // 1. 유저 정보 조회 (이미지 삭제 등을 위해)
+    const [users] = await pool.query(
+      "SELECT profile_image FROM users WHERE id = ?",
+      [userId]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ message: "유저를 찾을 수 없습니다." });
+    }
+
+    const user = users[0];
+
+    // 2. Cloudinary에서 프로필 이미지 삭제
+    if (user.profile_image) {
+      await deleteFromCloudinary(user.profile_image);
+    }
+
+    // 3. DB에서 유저 삭제 (ON DELETE CASCADE로 연관 데이터 자동 삭제됨)
+    await pool.query("DELETE FROM users WHERE id = ?", [userId]);
+
+    res.status(200).json({
+      success: true,
+      message: "유저가 강제 탈퇴 처리되었습니다."
+    });
+  } catch (error) {
+    console.error("유저 강제 탈퇴 에러:", error);
+    res.status(500).json({ message: "유저 탈퇴 처리 중 에러가 발생했습니다." });
+  }
+});
+
 export default router;
