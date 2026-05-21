@@ -19,10 +19,33 @@ const app = express();
 
 console.log("🚀 [System] 서버 초기화 시작...");
 
+const allowedOrigins = new Set(["https://pickpick.dev"]);
+
+const isAllowedLocalOrigin = (origin) => {
+  if (!origin) return true;
+
+  try {
+    const { hostname, protocol } = new URL(origin);
+    return (
+      protocol === "http:" &&
+      (hostname === "localhost" || hostname === "127.0.0.1")
+    );
+  } catch {
+    return false;
+  }
+};
+
 // CORS 설정
 app.use(
   cors({
-    origin: ["https://pickpick.dev", "http://localhost:5173", "http://localhost:5174"],
+    origin(origin, callback) {
+      if (allowedOrigins.has(origin) || isAllowedLocalOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error("Not allowed by CORS"));
+    },
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,

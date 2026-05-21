@@ -216,7 +216,10 @@ router.post(
         candidate_b_name,
         candidate_a_type,
         candidate_b_type,
+        expires_at,
+        is_indefinite,
       } = req.body;
+      const normalizedExpiresAt = is_indefinite === "true" ? null : expires_at;
 
       // Cloudinary에 파일 업로드 및 URL 반환
       let candidate_a_image = req.body.candidate_a_image || null;
@@ -246,7 +249,7 @@ router.post(
       const query = `
       INSERT INTO vote_posts 
       (author_id, category, title, candidate_a_name, candidate_a_image, candidate_a_type, candidate_b_name, candidate_b_image, candidate_b_type, expires_at) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 1 DAY))
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
       const values = [
         author_id,
@@ -258,6 +261,7 @@ router.post(
         candidate_b_name,
         candidate_b_image,
         candidate_b_type || "image",
+        normalizedExpiresAt,
       ];
 
       const [result] = await pool.execute(query, values);
@@ -352,6 +356,8 @@ router.put(
         candidate_b_name,
         candidate_a_type,
         candidate_b_type,
+        expires_at,
+        is_indefinite,
       } = req.body;
 
       // 작성자 확인
@@ -399,6 +405,13 @@ router.put(
       if (candidate_b_type) {
         updateFields.push("candidate_b_type = ?");
         values.push(candidate_b_type);
+      }
+      if (is_indefinite === "true") {
+        updateFields.push("expires_at = ?");
+        values.push(null);
+      } else if (expires_at) {
+        updateFields.push("expires_at = ?");
+        values.push(expires_at);
       }
 
       // 유튜브 ID나 기존 이미지 경로 처리

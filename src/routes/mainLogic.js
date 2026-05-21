@@ -9,9 +9,11 @@ const MAIN_FEATURED_VOTE_QUERY = `
     p.title,
     p.candidate_a_name,
     p.candidate_a_image,
+    p.candidate_a_type,
     COALESCE(p.candidate_a_count, 0) AS candidate_a_count,
     p.candidate_b_name,
     p.candidate_b_image,
+    p.candidate_b_type,
     COALESCE(p.candidate_b_count, 0) AS candidate_b_count,
     COALESCE(p.view_count, 0) AS view_count,
     (
