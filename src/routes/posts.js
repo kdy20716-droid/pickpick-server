@@ -155,7 +155,12 @@ router.get("/", async (req, res) => {
       params.push(pinned_post_id);
     }
 
-    // [신규 추가] 투표 상태 정렬: 마감안된 투표 -> 무기한 투표 -> 마감된 투표 순
+    // [신규 추가] 투표 여부 우선 (안 한 것 먼저)
+    if (user_id) {
+      orderClauses.push("vr.selected_side IS NOT NULL ASC"); // NULL(0) < NOT NULL(1)
+    }
+
+    // 투표 상태 정렬: 마감안된 투표 -> 무기한 투표 -> 마감된 투표 순
     orderClauses.push(`
       CASE 
         WHEN p.expires_at > NOW() THEN 0 
@@ -163,11 +168,6 @@ router.get("/", async (req, res) => {
         ELSE 2 
       END ASC
     `);
-
-    // 로그인 시 투표하지 않은 게시글 우선 (NULL 우선 정렬)
-    if (user_id) {
-      orderClauses.push("vr.selected_side IS NOT NULL ASC"); // NULL(0) < NOT NULL(1)
-    }
 
     if (sort === "popular") {
       orderClauses.push("total_votes DESC", "p.view_count DESC");
