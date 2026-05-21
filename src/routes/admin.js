@@ -260,4 +260,52 @@ router.put("/users/:userId/status", checkAdmin, async (req, res) => {
   }
 });
 
+// 신고 목록 조회 API : GET /admin/reports
+router.get("/reports", checkAdmin, async (req, res) => {
+  try {
+    const [reports] = await pool.query(
+      `SELECT r.*, vp.title as vote_title, u.nickname as reporter_nickname
+       FROM reports r
+       JOIN vote_posts vp ON r.post_id = vp.id
+       LEFT JOIN users u ON r.user_id = u.id
+       ORDER BY r.created_at DESC`
+    );
+
+    res.status(200).json({
+      success: true,
+      count: reports.length,
+      reports: reports
+    });
+  } catch (error) {
+    console.error("신고 목록 조회 에러:", error);
+    res.status(500).json({ message: "신고 목록을 불러오는 중 에러가 발생했습니다." });
+  }
+});
+
+// 신고 상태 변경 API : PUT /admin/reports/:reportId/status
+router.put("/reports/:reportId/status", checkAdmin, async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const { status } = req.body;
+
+    if (!['pending', 'resolved', 'ignored'].includes(status)) {
+      return res.status(400).json({ message: "유효하지 않은 상태입니다." });
+    }
+
+    const [result] = await pool.query(
+      "UPDATE reports SET status = ? WHERE id = ?",
+      [status, reportId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "신고 건을 찾을 수 없습니다." });
+    }
+
+    res.status(200).json({ success: true, message: "신고 상태가 변경되었습니다." });
+  } catch (error) {
+    console.error("신고 상태 변경 에러:", error);
+    res.status(500).json({ message: "신고 상태 변경 중 에러가 발생했습니다." });
+  }
+});
+
 export default router;

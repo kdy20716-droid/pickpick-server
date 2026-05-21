@@ -15,6 +15,7 @@ import voteListRouter from "./routes/posts.js";
 import votesRouter from "./routes/votes.js";
 import mainRouter from "./routes/mainLogic.js"
 import adminRouter from "./routes/admin.js";
+import reportsRouter from "./routes/reports.js";
 
 const lookup = promisify(dns.lookup);
 const app = express();
@@ -61,6 +62,20 @@ async function initializeDatabase() {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
+
+    // 신고 테이블 추가
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS reports (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        post_id BIGINT NOT NULL,
+        user_id BIGINT NULL,
+        reason TEXT NOT NULL,
+        status ENUM('pending', 'resolved', 'ignored') DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (post_id) REFERENCES vote_posts(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+      )
+    `);
     
     console.log("✅ [DB] Database schema initialized");
   } catch (error) {
@@ -88,6 +103,7 @@ app.use("/votelist", voteListRouter);
 app.use("/api/votes", votesRouter);
 app.use("/main", mainRouter)
 app.use("/admin", adminRouter);
+app.use("/reports", reportsRouter);
 
 app.get("/ping", (req, res) => {
   res.status(200).send("pong");
