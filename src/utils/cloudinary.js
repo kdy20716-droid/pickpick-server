@@ -37,10 +37,13 @@ export const uploadToCloudinary = async (buffer, filename) => {
   });
 
   return new Promise((resolve, reject) => {
-    // 대시보드에서 설정한 프리셋(ml_default)을 사용하여 AI 검열/분석을 자동화합니다.
+    // [임시 조치] ml_default 프리셋 사용 시 500 에러가 발생하여 주석 처리합니다.
+    // 추후 AI 분석 기능을 활성화하려면 아래 사항을 확인하세요:
+    // 1. Cloudinary 대시보드에서 ml_default 프리셋의 'Signing Mode'가 'Signed'인지 확인
+    // 2. 'AI Vision' 또는 'AI Content Detection' Add-on이 정상 구독 중인지 확인
     const uploadOptions = { 
       folder: "pickpick",
-      upload_preset: "ml_default" 
+      // upload_preset: "ml_default" 
     };
 
     const uploadStream = cloudinary.uploader.upload_stream(
