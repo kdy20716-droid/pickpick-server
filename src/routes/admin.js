@@ -60,29 +60,38 @@ router.post("/send-verification", checkAdmin, async (req, res) => {
   }
 });
 
-// 투표 검색 API : GET /admin/votes/search?q=검색어
+// 투표 검색 API : GET /admin/votes/search?q=검색어&page=1&limit=50
 router.get("/votes/search", checkAdmin, async (req, res) => {
   try {
-    const { q } = req.query;
+    const { q, page = 1, limit = 50 } = req.query;
+    const offset = (page - 1) * limit;
 
     if (!q || q.trim() === "") {
       return res.status(400).json({ message: "검색어를 입력해주세요." });
     }
 
     const searchTerm = `%${q}%`;
+    const [countRows] = await pool.query(
+      `SELECT COUNT(*) as total FROM vote_posts vp
+       JOIN users u ON vp.author_id = u.id
+       WHERE vp.title LIKE ? OR vp.candidate_a_name LIKE ? OR vp.candidate_b_name LIKE ?`,
+      [searchTerm, searchTerm, searchTerm]
+    );
+
     const [votes] = await pool.query(
       `SELECT vp.*, u.nickname as author_nickname, u.name as author_name,
               (SELECT COUNT(*) FROM comments WHERE post_id = vp.id) as comment_count
        FROM vote_posts vp
        JOIN users u ON vp.author_id = u.id
        WHERE vp.title LIKE ? OR vp.candidate_a_name LIKE ? OR vp.candidate_b_name LIKE ?
-       ORDER BY vp.created_at DESC`,
-      [searchTerm, searchTerm, searchTerm],
+       ORDER BY vp.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [searchTerm, searchTerm, searchTerm, Number(limit), Number(offset)]
     );
 
     res.status(200).json({
       success: true,
-      count: votes.length,
+      total: countRows[0].total,
       votes: votes,
     });
   } catch (error) {
@@ -91,21 +100,27 @@ router.get("/votes/search", checkAdmin, async (req, res) => {
   }
 });
 
-// 투표 조회 (모든 투표 목록) : GET /admin/votes
+// 투표 조회 (모든 투표 목록) : GET /admin/votes?page=1&limit=50
 router.get("/votes", checkAdmin, async (req, res) => {
   try {
+    const { page = 1, limit = 50 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const [countRows] = await pool.query("SELECT COUNT(*) as total FROM vote_posts");
+
     const [votes] = await pool.query(
       `SELECT vp.*, u.nickname as author_nickname, u.name as author_name,
               (SELECT COUNT(*) FROM comments WHERE post_id = vp.id) as comment_count
        FROM vote_posts vp
        JOIN users u ON vp.author_id = u.id
        ORDER BY vp.created_at DESC
-       LIMIT 100`,
+       LIMIT ? OFFSET ?`,
+      [Number(limit), Number(offset)]
     );
 
     res.status(200).json({
       success: true,
-      count: votes.length,
+      total: countRows[0].total,
       votes: votes,
     });
   } catch (error) {
@@ -119,7 +134,6 @@ router.delete("/votes/:voteId", checkAdmin, async (req, res) => {
   try {
     const { voteId } = req.params;
 
-    // 1. 삭제할 투표의 이미지 URL 조회
     const [votes] = await pool.query(
       "SELECT candidate_a_image, candidate_b_image FROM vote_posts WHERE id = ?",
       [voteId],
@@ -131,7 +145,6 @@ router.delete("/votes/:voteId", checkAdmin, async (req, res) => {
 
     const vote = votes[0];
 
-    // 2. Cloudinary에서 이미지 삭제
     if (vote.candidate_a_image) {
       await deleteFromCloudinary(vote.candidate_a_image);
     }
@@ -139,10 +152,7 @@ router.delete("/votes/:voteId", checkAdmin, async (req, res) => {
       await deleteFromCloudinary(vote.candidate_b_image);
     }
 
-    // 3. DB에서 투표 삭제
-    const [result] = await pool.query("DELETE FROM vote_posts WHERE id = ?", [
-      voteId,
-    ]);
+    await pool.query("DELETE FROM vote_posts WHERE id = ?", [voteId]);
 
     res.status(200).json({
       success: true,
@@ -154,70 +164,21 @@ router.delete("/votes/:voteId", checkAdmin, async (req, res) => {
   }
 });
 
-// 댓글 조회 API : GET /admin/comments?postId=투표ID
-router.get("/comments", checkAdmin, async (req, res) => {
-  try {
-    const { postId } = req.query;
-
-    let query = `SELECT c.*, u.nickname as author_nickname, u.name as author_name,
-                        vp.title as vote_title
-                 FROM comments c
-                 JOIN users u ON c.user_id = u.id
-                 JOIN vote_posts vp ON c.post_id = vp.id`;
-    let params = [];
-
-    if (postId) {
-      query += " WHERE c.post_id = ?";
-      params.push(postId);
-    }
-
-    query += " ORDER BY c.created_at DESC LIMIT 200";
-
-    const [comments] = await pool.query(query, params);
-
-    res.status(200).json({
-      success: true,
-      count: comments.length,
-      comments: comments,
-    });
-  } catch (error) {
-    console.error("댓글 조회 에러:", error);
-    res.status(500).json({ message: "댓글 조회 중 에러가 발생했습니다." });
-  }
-});
-
-// 댓글 삭제 API : DELETE /admin/comments/:commentId
-router.delete("/comments/:commentId", checkAdmin, async (req, res) => {
-  try {
-    const { commentId } = req.params;
-
-    const [result] = await pool.query("DELETE FROM comments WHERE id = ?", [
-      commentId,
-    ]);
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "댓글을 찾을 수 없습니다." });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "댓글이 삭제되었습니다.",
-    });
-  } catch (error) {
-    console.error("댓글 삭제 에러:", error);
-    res.status(500).json({ message: "댓글 삭제 중 에러가 발생했습니다." });
-  }
-});
-
 // --- 유저 관리 API ---
 
-// 유저 목록 조회 : GET /admin/users
+// 유저 목록 조회 : GET /admin/users?page=1&limit=50
 router.get("/users", checkAdmin, async (req, res) => {
   try {
+    const { page = 1, limit = 50 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const [countRows] = await pool.query("SELECT COUNT(*) as total FROM users");
+
     const [users] = await pool.query(
-      "SELECT id, nickname, name, email, tier, selected_border, unlocked_borders, role, created_at FROM users ORDER BY created_at DESC",
+      "SELECT id, nickname, name, email, tier, selected_border, unlocked_borders, role, created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?",
+      [Number(limit), Number(offset)]
     );
-    res.status(200).json({ success: true, users });
+    res.status(200).json({ success: true, total: countRows[0].total, users });
   } catch (error) {
     console.error("유저 목록 조회 에러:", error);
     res
@@ -238,11 +199,8 @@ router.put("/users/:userId/status", checkAdmin, async (req, res) => {
     if (tier) {
       updateFields.push("tier = ?");
       params.push(tier);
-
-      // 티어 변경 시 등급(grade)과 선택된 테두리(selected_border)도 함께 동기화
       updateFields.push("grade = ?");
       params.push(tier.toUpperCase());
-
       updateFields.push("selected_border = ?");
       params.push(tier);
     }
@@ -274,8 +232,6 @@ router.put("/users/:userId/status", checkAdmin, async (req, res) => {
 router.delete("/users/:userId", checkAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
-
-    // 1. 유저 정보 조회 (이미지 삭제 등을 위해)
     const [users] = await pool.query(
       "SELECT profile_image FROM users WHERE id = ?",
       [userId],
@@ -286,13 +242,10 @@ router.delete("/users/:userId", checkAdmin, async (req, res) => {
     }
 
     const user = users[0];
-
-    // 2. Cloudinary에서 프로필 이미지 삭제
     if (user.profile_image) {
       await deleteFromCloudinary(user.profile_image);
     }
 
-    // 3. DB에서 유저 삭제 (ON DELETE CASCADE로 연관 데이터 자동 삭제됨)
     await pool.query("DELETE FROM users WHERE id = ?", [userId]);
 
     res.status(200).json({
@@ -305,12 +258,77 @@ router.delete("/users/:userId", checkAdmin, async (req, res) => {
   }
 });
 
+// --- 신고 관리 API ---
+
+// 신고 목록 조회 : GET /admin/reports?page=1&limit=30
+router.get("/reports", checkAdmin, async (req, res) => {
+  try {
+    // 1. 테이블 존재 여부 및 컬럼 구조 강제 교정 (충돌 방지)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS reports (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        post_id INT,
+        user_id INT,
+        reason TEXT NOT NULL,
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    const { page = 1, limit = 30 } = req.query;
+    const offset = (page - 1) * limit;
+
+    // 2. 전체 개수 조회
+    const [countRows] = await pool.query("SELECT COUNT(*) as total FROM reports");
+
+    // 3. 목록 조회 (JOIN 시 데이터가 없는 경우를 대비해 LEFT JOIN 사용)
+    // u.nickname 대신 u.name을 고려하거나 COALESCE 사용
+    const [reports] = await pool.query(
+      `SELECT 
+        r.id, r.post_id, r.user_id, r.reason, r.status, r.created_at,
+        COALESCE(u.nickname, u.name, '탈퇴유저') as reporter_nickname,
+        COALESCE(vp.title, '삭제된 게시물') as vote_title
+       FROM reports r
+       LEFT JOIN users u ON r.user_id = u.id
+       LEFT JOIN vote_posts vp ON r.post_id = vp.id
+       ORDER BY r.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [Number(limit), Number(offset)]
+    );
+
+    res.status(200).json({ 
+      success: true, 
+      total: countRows[0].total, 
+      reports 
+    });
+  } catch (error) {
+    console.error("신고 목록 조회 에러 상세:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "신고 목록을 불러오는 중 서버 에러가 발생했습니다.",
+      error: error.message 
+    });
+  }
+});
+
+// 신고 상태 업데이트 : PUT /admin/reports/:id/status
+router.put("/reports/:id/status", checkAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    await pool.query("UPDATE reports SET status = ? WHERE id = ?", [status, id]);
+    res.status(200).json({ success: true, message: "신고 상태가 업데이트되었습니다." });
+  } catch (error) {
+    console.error("신고 상태 업데이트 에러:", error);
+    res.status(500).json({ message: "신고 처리에 실패했습니다." });
+  }
+});
+
 // --- 이메일 차단(BAN) 관리 API ---
 
-// 차단된 이메일 목록 조회 : GET /admin/banned-emails
+// 차단된 이메일 목록 조회 : GET /admin/banned-emails?page=1&limit=30
 router.get("/banned-emails", checkAdmin, async (req, res) => {
   try {
-    // 테이블이 없는 경우를 대비해 자동 생성 시도
     await pool.query(`
       CREATE TABLE IF NOT EXISTS banned_emails (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -319,10 +337,16 @@ router.get("/banned-emails", checkAdmin, async (req, res) => {
       )
     `);
 
+    const { page = 1, limit = 30 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const [countRows] = await pool.query("SELECT COUNT(*) as total FROM banned_emails");
+
     const [rows] = await pool.query(
-      "SELECT * FROM banned_emails ORDER BY created_at DESC",
+      "SELECT * FROM banned_emails ORDER BY created_at DESC LIMIT ? OFFSET ?",
+      [Number(limit), Number(offset)]
     );
-    res.status(200).json({ success: true, bannedEmails: rows });
+    res.status(200).json({ success: true, total: countRows[0].total, bannedEmails: rows });
   } catch (error) {
     console.error("차단 이메일 조회 에러:", error);
     res
@@ -361,57 +385,6 @@ router.delete("/banned-emails/:id", checkAdmin, async (req, res) => {
   } catch (error) {
     console.error("이메일 차단 해제 에러:", error);
     res.status(500).json({ message: "차단 해제 중 에러가 발생했습니다." });
-  }
-});
-// 신고 목록 조회 API : GET /admin/reports
-router.get("/reports", checkAdmin, async (req, res) => {
-  try {
-    const [reports] = await pool.query(
-      `SELECT r.*, 
-              COALESCE(vp.title, r.post_title) as vote_title, 
-              u.nickname as reporter_nickname
-       FROM reports r
-       LEFT JOIN vote_posts vp ON r.post_id = vp.id
-       LEFT JOIN users u ON r.user_id = u.id
-       ORDER BY r.created_at DESC`
-    );
-
-    res.status(200).json({
-      success: true,
-      count: reports.length,
-      reports: reports
-    });
-  } catch (error) {
-    console.error("신고 목록 조회 에러:", error);
-    res.status(500).json({ message: "신고 목록을 불러오는 중 에러가 발생했습니다." });
-  }
-});
-
-// 신고 상태 변경 API : PUT /admin/reports/:reportId/status
-router.put("/reports/:reportId/status", checkAdmin, async (req, res) => {
-  try {
-    const { reportId } = req.params;
-    const { status } = req.body;
-
-    if (!["pending", "resolved", "ignored"].includes(status)) {
-      return res.status(400).json({ message: "유효하지 않은 상태입니다." });
-    }
-
-    const [result] = await pool.query(
-      "UPDATE reports SET status = ? WHERE id = ?",
-      [status, reportId],
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "신고 건을 찾을 수 없습니다." });
-    }
-
-    res
-      .status(200)
-      .json({ success: true, message: "신고 상태가 변경되었습니다." });
-  } catch (error) {
-    console.error("신고 상태 변경 에러:", error);
-    res.status(500).json({ message: "신고 상태 변경 중 에러가 발생했습니다." });
   }
 });
 
