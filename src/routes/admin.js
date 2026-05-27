@@ -164,6 +164,30 @@ router.delete("/votes/:voteId", checkAdmin, async (req, res) => {
   }
 });
 
+// 특정 투표의 상세 참여 기록 조회 API : GET /admin/votes/:voteId/records
+router.get("/votes/:voteId/records", checkAdmin, async (req, res) => {
+  try {
+    const { voteId } = req.params;
+
+    const [records] = await pool.query(
+      `SELECT vr.selected_side, vr.created_at, u.nickname, u.name, u.email
+       FROM vote_records vr
+       JOIN users u ON vr.user_id = u.id
+       WHERE vr.post_id = ?
+       ORDER BY vr.created_at DESC`,
+      [voteId]
+    );
+
+    res.status(200).json({
+      success: true,
+      records: records
+    });
+  } catch (error) {
+    console.error("투표 상세 기록 조회 에러:", error);
+    res.status(500).json({ message: "상세 기록을 불러오는 중 에러가 발생했습니다." });
+  }
+});
+
 // --- 유저 관리 API ---
 
 // 유저 목록 조회 : GET /admin/users?page=1&limit=50
