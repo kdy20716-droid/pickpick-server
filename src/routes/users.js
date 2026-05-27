@@ -145,16 +145,19 @@ router.put("/border/:userId", async (req, res) => {
     const [userRows] = await pool.query("SELECT tier FROM users WHERE id = ?", [userId]);
     if (userRows.length === 0) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
 
-    const storedTier = (userRows[0].tier || "bronze").toLowerCase();
-    const userTier = storedTier === "unranked" ? "bronze" : storedTier;
+    const storedTier = (userRows[0].tier || "unranked").toLowerCase();
+    const userTier = storedTier;
     
-    const tiers = ["bronze", "silver", "gold", "platinum", "diamond", "master", "challenger"];
+    const tiers = ["unranked", "bronze", "silver", "gold", "platinum", "diamond", "master", "challenger"];
     const userTierIndex = tiers.indexOf(userTier);
     
     // 선택된 테두리 정규화
-    const normalizedSelectedBorder = (border || "bronze").toLowerCase();
+    const normalizedSelectedBorder = (border || "unranked").toLowerCase();
     const selectedTier = normalizedSelectedBorder;
-    const selectedTierIndex = tiers.indexOf(selectedTier);
+    let selectedTierIndex = tiers.indexOf(selectedTier);
+
+    // null(기본) 테두리인 경우 unranked와 동일하게 처리
+    if (border === null) selectedTierIndex = 0;
 
     // 어드민/픽 테두리는 별도 권한 체크 (현재는 어드민만 가능하게 하거나 unlocked_borders 체크 필요)
     if (border === "admin" || border === "pick") {
