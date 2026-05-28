@@ -55,8 +55,17 @@ router.get("/me", authMiddleware, async (req, res) => {
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
+// 사용자 본인 권한 확인용 미들웨어 헬퍼 함수
+const checkOwnership = (req, res, next) => {
+  const targetUserId = req.params.userId || req.body.userId;
+  if (!targetUserId || parseInt(req.userId) !== parseInt(targetUserId)) {
+    return res.status(403).json({ message: "접근 권한이 없습니다." });
+  }
+  next();
+};
+
 // 프로필 정보 및 사진 업데이트 API : PUT /users/profile/:userId
-router.put("/profile/:userId", upload.single("profile_image"), async (req, res) => {
+router.put("/profile/:userId", authMiddleware, checkOwnership, upload.single("profile_image"), async (req, res) => {
   try {
     const { userId } = req.params;
     const { name, email, birth, gender, nationality, remove_profile_image } =
@@ -136,7 +145,7 @@ router.put("/profile/:userId", upload.single("profile_image"), async (req, res) 
 });
 
 // 프로필 테두리 변경 API : PUT /users/border/:userId
-router.put("/border/:userId", async (req, res) => {
+router.put("/border/:userId", authMiddleware, checkOwnership, async (req, res) => {
   try {
     const { userId } = req.params;
     const { border } = req.body;
@@ -508,7 +517,7 @@ router.post("/reset-password", async (req, res) => {
 });
 
 // 비밀번호 수정 API (현재 비밀번호 확인 포함) : POST /users/change-password
-router.post("/change-password", async (req, res) => {
+router.post("/change-password", authMiddleware, checkOwnership, async (req, res) => {
   const { userId, currentPassword, newPassword } = req.body;
 
   if (!userId || !currentPassword || !newPassword) {
@@ -643,7 +652,7 @@ router.post("/verify-email-code", async (req, res) => {
 });
 
 // 알림 조회 API : GET /users/:userId/notifications
-router.get("/:userId/notifications", async (req, res) => {
+router.get("/:userId/notifications", authMiddleware, checkOwnership, async (req, res) => {
   try {
     const { userId } = req.params;
     const [notifications] = await pool.query(
@@ -666,7 +675,7 @@ router.get("/:userId/notifications", async (req, res) => {
 });
 
 // 알림 읽음 처리 API : PUT /users/:userId/notifications/:notifId/read
-router.put("/:userId/notifications/:notifId/read", async (req, res) => {
+router.put("/:userId/notifications/:notifId/read", authMiddleware, checkOwnership, async (req, res) => {
   try {
     const { userId, notifId } = req.params;
     await pool.query(
@@ -683,7 +692,7 @@ router.put("/:userId/notifications/:notifId/read", async (req, res) => {
 });
 
 // 모든 알림 읽음 처리 API : PUT /users/:userId/notifications/read-all
-router.put("/:userId/notifications/read-all", async (req, res) => {
+router.put("/:userId/notifications/read-all", authMiddleware, checkOwnership, async (req, res) => {
   try {
     const { userId } = req.params;
     await pool.query(
@@ -700,7 +709,7 @@ router.put("/:userId/notifications/read-all", async (req, res) => {
 });
 
 // 회원 탈퇴 API : DELETE /users/account/:userId
-router.delete("/account/:userId", async (req, res) => {
+router.delete("/account/:userId", authMiddleware, checkOwnership, async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -737,7 +746,7 @@ router.delete("/account/:userId", async (req, res) => {
 });
 
 // 로그인 기록 조회 API : GET /users/login-history/:userId
-router.get("/login-history/:userId", async (req, res) => {
+router.get("/login-history/:userId", authMiddleware, checkOwnership, async (req, res) => {
   try {
     const { userId } = req.params;
 
