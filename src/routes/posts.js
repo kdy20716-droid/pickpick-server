@@ -206,8 +206,7 @@ router.get("/ranking", async (req, res) => {
       const query = `
       SELECT p.*, (p.candidate_a_count + p.candidate_b_count) as total_votes
       FROM vote_posts p
-      WHERE p.expires_at IS NOT NULL
-      ORDER BY total_votes DESC
+      ORDER BY total_votes DESC, p.id DESC
       LIMIT 10
     `;
     const [rows] = await pool.query(query);
