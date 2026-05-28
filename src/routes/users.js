@@ -539,6 +539,9 @@ router.post("/change-password", async (req, res) => {
   }
 });
 
+// [신규 추가] 이메일 인증 코드 검증용 메모리 저장소 (운영 환경에선 Redis 추천)
+const emailVerificationCodes = new Map();
+
 // 이메일 인증 코드 발송 API : POST /users/send-email-code
 router.post("/send-email-code", async (req, res) => {
   const { email } = req.body;
@@ -585,9 +588,15 @@ router.post("/send-email-code", async (req, res) => {
       });
       console.log("✅ 인증 코드 발송 성공!");
 
-      res.status(200).json({
-        message: "인증 코드가 발송되었습니다.",
+      // 서버 메모리에 코드 저장 (10분 후 만료)
+      emailVerificationCodes.set(email, {
         code: tempCode,
+        expires: Date.now() + 10 * 60 * 1000 
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "인증 코드가 발송되었습니다."
       });
     } catch (emailError) {
       console.error("❌ 이메일 전송 에러 (Brevo):", emailError);
@@ -602,6 +611,34 @@ router.post("/send-email-code", async (req, res) => {
       message: "서버 오류가 발생했습니다.",
       error: error.message,
     });
+  }
+});
+
+// 이메일 인증 코드 확인 API : POST /users/verify-email-code
+router.post("/verify-email-code", async (req, res) => {
+  const { email, code } = req.body;
+
+  if (!email || !code) {
+    return res.status(400).json({ message: "이메일과 인증 코드를 입력해주세요." });
+  }
+
+  const storedData = emailVerificationCodes.get(email);
+
+  if (!storedData) {
+    return res.status(400).json({ message: "인증 요청 내역이 없거나 만료되었습니다." });
+  }
+
+  if (Date.now() > storedData.expires) {
+    emailVerificationCodes.delete(email);
+    return res.status(400).json({ message: "인증 코드가 만료되었습니다." });
+  }
+
+  if (storedData.code === code) {
+    // 인증 성공 시 정보 업데이트 (실제 운영 환경에선 'verified' 플래그 등을 저장하는 것이 좋음)
+    emailVerificationCodes.set(email, { ...storedData, verified: true });
+    res.status(200).json({ success: true, message: "이메일 인증이 완료되었습니다." });
+  } else {
+    res.status(400).json({ message: "인증 코드가 일치하지 않습니다." });
   }
 });
 
