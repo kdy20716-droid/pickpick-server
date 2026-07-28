@@ -55,8 +55,17 @@ router.get("/me", authMiddleware, async (req, res) => {
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
+// 사용자 본인 권한 확인용 미들웨어 헬퍼 함수
+const checkOwnership = (req, res, next) => {
+  const targetUserId = req.params.userId || req.body.userId;
+  if (!targetUserId || parseInt(req.userId) !== parseInt(targetUserId)) {
+    return res.status(403).json({ message: "접근 권한이 없습니다." });
+  }
+  next();
+};
+
 // 프로필 정보 및 사진 업데이트 API : PUT /users/profile/:userId
-router.put("/profile/:userId", upload.single("profile_image"), async (req, res) => {
+router.put("/profile/:userId", authMiddleware, checkOwnership, upload.single("profile_image"), async (req, res) => {
   try {
     const { userId } = req.params;
     const { name, email, birth, gender, nationality, remove_profile_image } =
@@ -136,7 +145,7 @@ router.put("/profile/:userId", upload.single("profile_image"), async (req, res) 
 });
 
 // 프로필 테두리 변경 API : PUT /users/border/:userId
-router.put("/border/:userId", async (req, res) => {
+router.put("/border/:userId", authMiddleware, checkOwnership, async (req, res) => {
   try {
     const { userId } = req.params;
     const { border } = req.body;
@@ -145,16 +154,19 @@ router.put("/border/:userId", async (req, res) => {
     const [userRows] = await pool.query("SELECT tier FROM users WHERE id = ?", [userId]);
     if (userRows.length === 0) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
 
-    const storedTier = (userRows[0].tier || "bronze").toLowerCase();
-    const userTier = storedTier === "unranked" ? "bronze" : storedTier;
+    const storedTier = (userRows[0].tier || "unranked").toLowerCase();
+    const userTier = storedTier;
     
-    const tiers = ["bronze", "silver", "gold", "platinum", "diamond", "master", "challenger"];
+    const tiers = ["unranked", "bronze", "silver", "gold", "platinum", "diamond", "master", "challenger"];
     const userTierIndex = tiers.indexOf(userTier);
     
     // 선택된 테두리 정규화
-    const normalizedSelectedBorder = (border || "bronze").toLowerCase();
+    const normalizedSelectedBorder = (border || "unranked").toLowerCase();
     const selectedTier = normalizedSelectedBorder;
-    const selectedTierIndex = tiers.indexOf(selectedTier);
+    let selectedTierIndex = tiers.indexOf(selectedTier);
+
+    // null(기본) 테두리인 경우 unranked와 동일하게 처리
+    if (border === null) selectedTierIndex = 0;
 
     // 어드민/픽 테두리는 별도 권한 체크 (현재는 어드민만 가능하게 하거나 unlocked_borders 체크 필요)
     if (border === "admin" || border === "pick") {
@@ -505,7 +517,7 @@ router.post("/reset-password", async (req, res) => {
 });
 
 // 비밀번호 수정 API (현재 비밀번호 확인 포함) : POST /users/change-password
-router.post("/change-password", async (req, res) => {
+router.post("/change-password", authMiddleware, checkOwnership, async (req, res) => {
   const { userId, currentPassword, newPassword } = req.body;
 
   if (!userId || !currentPassword || !newPassword) {
@@ -535,6 +547,9 @@ router.post("/change-password", async (req, res) => {
     res.status(500).json({ message: "비밀번호 수정에 실패했습니다." });
   }
 });
+
+// [신규 추가] 이메일 인증 코드 검증용 메모리 저장소 (운영 환경에선 Redis 추천)
+const emailVerificationCodes = new Map();
 
 // 이메일 인증 코드 발송 API : POST /users/send-email-code
 router.post("/send-email-code", async (req, res) => {
@@ -582,9 +597,15 @@ router.post("/send-email-code", async (req, res) => {
       });
       console.log("✅ 인증 코드 발송 성공!");
 
-      res.status(200).json({
-        message: "인증 코드가 발송되었습니다.",
+      // 서버 메모리에 코드 저장 (10분 후 만료)
+      emailVerificationCodes.set(email, {
         code: tempCode,
+        expires: Date.now() + 10 * 60 * 1000 
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "인증 코드가 발송되었습니다."
       });
     } catch (emailError) {
       console.error("❌ 이메일 전송 에러 (Brevo):", emailError);
@@ -602,8 +623,36 @@ router.post("/send-email-code", async (req, res) => {
   }
 });
 
+// 이메일 인증 코드 확인 API : POST /users/verify-email-code
+router.post("/verify-email-code", async (req, res) => {
+  const { email, code } = req.body;
+
+  if (!email || !code) {
+    return res.status(400).json({ message: "이메일과 인증 코드를 입력해주세요." });
+  }
+
+  const storedData = emailVerificationCodes.get(email);
+
+  if (!storedData) {
+    return res.status(400).json({ message: "인증 요청 내역이 없거나 만료되었습니다." });
+  }
+
+  if (Date.now() > storedData.expires) {
+    emailVerificationCodes.delete(email);
+    return res.status(400).json({ message: "인증 코드가 만료되었습니다." });
+  }
+
+  if (storedData.code === code) {
+    // 인증 성공 시 정보 업데이트 (실제 운영 환경에선 'verified' 플래그 등을 저장하는 것이 좋음)
+    emailVerificationCodes.set(email, { ...storedData, verified: true });
+    res.status(200).json({ success: true, message: "이메일 인증이 완료되었습니다." });
+  } else {
+    res.status(400).json({ message: "인증 코드가 일치하지 않습니다." });
+  }
+});
+
 // 알림 조회 API : GET /users/:userId/notifications
-router.get("/:userId/notifications", async (req, res) => {
+router.get("/:userId/notifications", authMiddleware, checkOwnership, async (req, res) => {
   try {
     const { userId } = req.params;
     const [notifications] = await pool.query(
@@ -626,7 +675,7 @@ router.get("/:userId/notifications", async (req, res) => {
 });
 
 // 알림 읽음 처리 API : PUT /users/:userId/notifications/:notifId/read
-router.put("/:userId/notifications/:notifId/read", async (req, res) => {
+router.put("/:userId/notifications/:notifId/read", authMiddleware, checkOwnership, async (req, res) => {
   try {
     const { userId, notifId } = req.params;
     await pool.query(
@@ -643,7 +692,7 @@ router.put("/:userId/notifications/:notifId/read", async (req, res) => {
 });
 
 // 모든 알림 읽음 처리 API : PUT /users/:userId/notifications/read-all
-router.put("/:userId/notifications/read-all", async (req, res) => {
+router.put("/:userId/notifications/read-all", authMiddleware, checkOwnership, async (req, res) => {
   try {
     const { userId } = req.params;
     await pool.query(
@@ -660,7 +709,7 @@ router.put("/:userId/notifications/read-all", async (req, res) => {
 });
 
 // 회원 탈퇴 API : DELETE /users/account/:userId
-router.delete("/account/:userId", async (req, res) => {
+router.delete("/account/:userId", authMiddleware, checkOwnership, async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -697,7 +746,7 @@ router.delete("/account/:userId", async (req, res) => {
 });
 
 // 로그인 기록 조회 API : GET /users/login-history/:userId
-router.get("/login-history/:userId", async (req, res) => {
+router.get("/login-history/:userId", authMiddleware, checkOwnership, async (req, res) => {
   try {
     const { userId } = req.params;
 

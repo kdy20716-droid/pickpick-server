@@ -9,7 +9,7 @@ import "dotenv/config";
  */
 export async function sendEmail({ to, subject, text, html }) {
   const BREVO_API_KEY = process.env.BREVO_API_KEY;
-  const senderEmail = process.env.EMAIL_USER || "kdy20716@gmail.com";
+  const senderEmail = process.env.EMAIL_USER || "support@pickpick.dev";
 
   if (!BREVO_API_KEY) {
     throw new Error("BREVO_API_KEY가 설정되지 않았습니다.");

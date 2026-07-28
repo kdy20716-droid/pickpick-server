@@ -1,6 +1,7 @@
 import express from "express";
 import pool from "../db.js"; // DB 연결 가져오기
 import { updateGrade } from "../utils/grade.js";
+import authMiddleware from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -14,16 +15,16 @@ async function getPostLikeCount(postId) {
 }
 
 // 투표하기 API (POST /api/votes/:postId)
-router.post("/:postId", async (req, res) => {
+router.post("/:postId", authMiddleware, async (req, res) => {
   const { postId } = req.params;
   const { user_id, selected_side } = req.body; // 'A' 또는 'B'
 
-  if (!user_id || !selected_side) {
+  if (!user_id || parseInt(req.userId) !== parseInt(user_id) || !selected_side) {
     return res
-      .status(400)
+      .status(403)
       .json({
         success: false,
-        message: "user_id와 selected_side('A' 또는 'B')가 필요합니다.",
+        message: "접근 권한이 없거나 필수 데이터(user_id, selected_side)가 누락되었습니다.",
       });
   }
 
@@ -116,14 +117,14 @@ router.post("/:postId", async (req, res) => {
 });
 
 // 좋아요 토글 API (POST /api/votes/:postId/like)
-router.post("/:postId/like", async (req, res) => {
+router.post("/:postId/like", authMiddleware, async (req, res) => {
   const { postId } = req.params;
   const { user_id, liked } = req.body;
 
-  if (!user_id) {
+  if (!user_id || parseInt(req.userId) !== parseInt(user_id)) {
     return res
-      .status(400)
-      .json({ success: false, message: "user_id가 필요합니다." });
+      .status(403)
+      .json({ success: false, message: "접근 권한이 없습니다." });
   }
 
   try {
@@ -212,14 +213,14 @@ router.get("/:postId/comments", async (req, res) => {
 });
 
 // 특정 투표에 댓글 추가 API (POST /api/votes/:postId/comments)
-router.post("/:postId/comments", async (req, res) => {
+router.post("/:postId/comments", authMiddleware, async (req, res) => {
   const { postId } = req.params;
   const { user_id, content, parent_id } = req.body;
 
-  if (!user_id || !content) {
+  if (!user_id || parseInt(req.userId) !== parseInt(user_id) || !content) {
     return res
-      .status(400)
-      .json({ success: false, message: "user_id와 content가 필요합니다." });
+      .status(403)
+      .json({ success: false, message: "접근 권한이 없거나 내용이 누락되었습니다." });
   }
 
   try {
@@ -304,14 +305,14 @@ router.post("/:postId/comments", async (req, res) => {
 });
 
 // 특정 투표의 댓글 삭제 API (DELETE /api/votes/:postId/comments/:commentId)
-router.delete("/:postId/comments/:commentId", async (req, res) => {
+router.delete("/:postId/comments/:commentId", authMiddleware, async (req, res) => {
   const { commentId } = req.params;
   const { user_id } = req.body;
 
-  if (!user_id) {
+  if (!user_id || parseInt(req.userId) !== parseInt(user_id)) {
     return res
-      .status(400)
-      .json({ success: false, message: "user_id가 필요합니다." });
+      .status(403)
+      .json({ success: false, message: "접근 권한이 없습니다." });
   }
 
   try {
@@ -351,14 +352,14 @@ router.delete("/:postId/comments/:commentId", async (req, res) => {
 });
 
 // 댓글 좋아요 토글 API (POST /api/votes/:postId/comments/:commentId/like)
-router.post("/:postId/comments/:commentId/like", async (req, res) => {
+router.post("/:postId/comments/:commentId/like", authMiddleware, async (req, res) => {
   const { commentId } = req.params;
   const { user_id } = req.body;
 
-  if (!user_id) {
+  if (!user_id || parseInt(req.userId) !== parseInt(user_id)) {
     return res
-      .status(400)
-      .json({ success: false, message: "user_id가 필요합니다." });
+      .status(403)
+      .json({ success: false, message: "접근 권한이 없습니다." });
   }
 
   try {

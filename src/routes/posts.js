@@ -6,6 +6,7 @@ import {
   uploadToCloudinary,
   deleteFromCloudinary,
 } from "../utils/cloudinary.js";
+import authMiddleware from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -205,8 +206,7 @@ router.get("/ranking", async (req, res) => {
       const query = `
       SELECT p.*, (p.candidate_a_count + p.candidate_b_count) as total_votes
       FROM vote_posts p
-      WHERE p.expires_at IS NOT NULL
-      ORDER BY total_votes DESC
+      ORDER BY total_votes DESC, p.id DESC
       LIMIT 10
     `;
     const [rows] = await pool.query(query);
@@ -237,6 +237,7 @@ router.post("/:postId/view", async (req, res) => {
 // 4. 투표 게시글 생성 API (이미지 업로드 포함)
 router.post(
   "/",
+  authMiddleware,
   upload.fields([
     { name: "candidate_a_image", maxCount: 1 },
     { name: "candidate_b_image", maxCount: 1 },
@@ -254,6 +255,10 @@ router.post(
         expires_at,
         is_indefinite,
       } = req.body;
+
+      if (!author_id || parseInt(req.userId) !== parseInt(author_id)) {
+         return res.status(403).json({ success: false, message: "접근 권한이 없습니다." });
+      }
 
       // Cloudinary에 파일 업로드 및 URL 반환
       let candidate_a_image = req.body.candidate_a_image || null;
@@ -347,9 +352,13 @@ router.post(
 );
 
 // 5. 투표 게시글 삭제 API
-router.delete("/:postId", async (req, res) => {
+router.delete("/:postId", authMiddleware, async (req, res) => {
   const { postId } = req.params;
-  const { user_id } = req.body; // 보안을 위해 요청 본문에서 user_id를 받음
+  const { user_id } = req.body;
+
+  if (!user_id || parseInt(req.userId) !== parseInt(user_id)) {
+     return res.status(403).json({ success: false, message: "접근 권한이 없습니다." });
+  }
 
   try {
     // 1. 게시글 정보 조회 (작성자 확인 및 이미지 URL 확보)
@@ -398,6 +407,7 @@ router.delete("/:postId", async (req, res) => {
 // 6. 투표 게시글 수정 API
 router.put(
   "/:postId",
+  authMiddleware,
   upload.fields([
     { name: "candidate_a_image", maxCount: 1 },
     { name: "candidate_b_image", maxCount: 1 },
@@ -416,6 +426,10 @@ router.put(
         expires_at,
         is_indefinite,
       } = req.body;
+
+      if (!author_id || parseInt(req.userId) !== parseInt(author_id)) {
+         return res.status(403).json({ success: false, message: "접근 권한이 없습니다." });
+      }
 
       // 작성자 확인
       const [posts] = await pool.query(
