@@ -1,50 +1,26 @@
-# PICKPICK Server
+🚀 PICKPICK Server
+취향 대결 및 커뮤니티 투표 플랫폼 > 사용자가 직접 대결 콘텐츠를 생성하고, 실시간으로 투표 및 소통할 수 있는 서비스의 백엔드 시스템입니다.
 
-PICKPICK의 Express 기반 API 서버입니다. 클라이언트에서 사용하는 기존 API 경로는 유지하면서 내부 구조를 라우트, 컨트롤러, 서비스, 설정, 미들웨어 레이어로 분리했습니다.
+## 📌 프로젝트 소개
 
-## 실행
+PICKPICK은 누구나 쉽게 'VS' 형태의 투표를 만들고 공유하는 플랫폼입니다. 단순한 데이터 수집을 넘어 사용자 간의 취향 차이를 확인하고 댓글로 소통하는 즐거움을 제공합니다.
 
-```bash
-npm install
-npm run dev
-```
+## 🛠 핵심 기능 (Core Features)
 
-기본 포트는 `4000`입니다.
+동적 투표 시스템: 실시간 투표 집계 및 결과 데이터 반환
 
-## 구조
+사용자 콘텐츠 제작 (UGC): 이미지 업로드 및 태그 기반의 투표 생성
 
-```text
-src/
-  app.js                 # 서버 조립 및 시작점
-  config/                # DB, CORS, 외부 서비스 설정
-  controllers/           # 요청/응답 처리
-  middleware/            # 인증, 업로드, 에러 처리
-  routes/                # URL과 컨트롤러 연결
-  services/              # 비즈니스 로직과 DB 작업
-  utils/                 # 공통 유틸리티
-```
+커뮤니티 인터랙션: 투표별 댓글 작성 및 실시간 의견 교환
 
-## 주요 API
+## 🏠 메인 페이지 및 큐레이션
 
-- `GET /ping`
-- `GET /db-test`
-- `POST /users/signin`
-- `POST /users/login`
-- `GET /users/me`
-- `GET /votelist`
-- `POST /votelist`
-- `POST /api/votes/:postId`
-- `GET /api/votes/:postId/comments`
-- `POST /reports`
-- `GET /admin/votes`
+트렌드 분석: 현재 참여도가 가장 높은 '인기 투표'를 메인 상단에 노출
 
-## 환경 변수
+실시간 업데이트: 최신 등록된 투표를 빠르게 확인 가능한 리스트 피드
 
-`.env`에 DB, JWT, 메일, Cloudinary 설정을 둡니다.
+## ⚡ 바로가기 및 퀵 투표 (Quick Play)
 
-- `PORT`
-- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_DATABASE`, `DB_SSL`
-- `SECRET_KEY`
-- `CLIENT_ORIGINS`
-- `BREVO_API_KEY`, `EMAIL_USER`
-- `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
+심리스 UX: 메인 리스트에서 상세 페이지 진입 없이 즉시 투표 가능
+
+즉각적 피드백: 투표 직후 실시간 선택 비율 및 통계 시각화 데이터 제공
