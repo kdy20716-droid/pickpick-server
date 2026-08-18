@@ -1,7 +1,12 @@
 const defaultAllowedOrigins = [
   "https://pickpick.dev",
+  "https://www.pickpick.dev",
   "http://localhost:5173",
   "http://localhost:5174",
+  "https://localhost",
+  "http://localhost",
+  "capacitor://localhost",
+  "ionic://localhost",
 ];
 
 const envAllowedOrigins = (process.env.CLIENT_ORIGINS || "")
