@@ -430,6 +430,189 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// 구글 로그인 API : POST /users/google-login
+router.post("/google-login", async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({ message: "구글 인증 토큰이 필요합니다." });
+    }
+
+    // 1. 구글 토큰 정보 검증 (Google 공식 tokeninfo API)
+    const googleVerifyUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(token)}`;
+    const googleRes = await fetch(googleVerifyUrl);
+
+    if (!googleRes.ok) {
+      return res
+        .status(401)
+        .json({ message: "유효하지 않은 구글 인증 토큰입니다." });
+    }
+
+    const payload = await googleRes.json();
+    const { email, name, picture } = payload;
+
+    if (!email) {
+      return res
+        .status(400)
+        .json({ message: "구글 계정의 이메일 정보를 가져올 수 없습니다." });
+    }
+
+    // 2. 이메일 차단(BAN) 여부 확인
+    const [bannedEmail] = await pool.query(
+      "SELECT * FROM banned_emails WHERE email = ?",
+      [email],
+    );
+
+    if (bannedEmail.length > 0) {
+      return res.status(403).json({
+        message: "차단된 이메일입니다. 해당 계정으로는 로그인할 수 없습니다.",
+      });
+    }
+
+    // 3. DB에서 이메일로 사용자 조회
+    let [users] = await pool.query(
+      "SELECT * FROM users WHERE email = ? LIMIT 1",
+      [email],
+    );
+
+    let user;
+    if (users.length === 0) {
+      // 신규 사용자 등록
+      let baseNickname = (email.split("@")[0] || "user").replace(
+        /[^a-zA-Z0-9_]/g,
+        "",
+      );
+      if (!baseNickname) baseNickname = "user";
+      let uniqueNickname = baseNickname;
+      let counter = 1;
+
+      while (true) {
+        const [existing] = await pool.query(
+          "SELECT id FROM users WHERE nickname = ?",
+          [uniqueNickname],
+        );
+        if (existing.length === 0) break;
+        uniqueNickname = `${baseNickname}_${counter++}`;
+      }
+
+      const randomPassword =
+        Math.random().toString(36).slice(-10) + Date.now().toString(36);
+      const hashedPassword = await bcrypt.hash(randomPassword, 10);
+
+      const [insertResult] = await pool.query(
+        `INSERT INTO users (nickname, password, name, email, profile_image, role, grade)
+         VALUES (?, ?, ?, ?, ?, 'user', 'UnRanked')`,
+        [
+          uniqueNickname,
+          hashedPassword,
+          name || uniqueNickname,
+          email,
+          picture || null,
+        ],
+      );
+
+      const newUserId = insertResult.insertId;
+      const [newUsers] = await pool.query("SELECT * FROM users WHERE id = ?", [
+        newUserId,
+      ]);
+      user = newUsers[0];
+    } else {
+      user = users[0];
+      if (!user.profile_image && picture) {
+        await pool.query("UPDATE users SET profile_image = ? WHERE id = ?", [
+          picture,
+          user.id,
+        ]);
+        user.profile_image = picture;
+      }
+    }
+
+    // 4. 통계 동기화 & 등급 갱신
+    try {
+      const [[{ participation_count }]] = await pool.query(
+        "SELECT COUNT(*) as participation_count FROM vote_records WHERE user_id = ?",
+        [user.id],
+      );
+      const [[{ creation_count }]] = await pool.query(
+        "SELECT COUNT(*) as creation_count FROM vote_posts WHERE author_id = ?",
+        [user.id],
+      );
+      const [[{ win_count }]] = await pool.query(
+        `SELECT COUNT(*) as win_count 
+         FROM vote_records vr
+         JOIN vote_posts vp ON vr.post_id = vp.id
+         WHERE vr.user_id = ? AND vp.winner_side = vr.selected_side`,
+        [user.id],
+      );
+
+      if (user.role === "admin") {
+        await pool.query(
+          "UPDATE users SET vote_participation_count = GREATEST(vote_participation_count, ?), post_creation_count = GREATEST(post_creation_count, ?), vote_win_count = GREATEST(vote_win_count, ?) WHERE id = ?",
+          [participation_count, creation_count, win_count, user.id],
+        );
+      } else {
+        await pool.query(
+          "UPDATE users SET vote_participation_count = ?, post_creation_count = ?, vote_win_count = ? WHERE id = ?",
+          [participation_count, creation_count, win_count, user.id],
+        );
+      }
+
+      const { updateGrade } = await import("../utils/grade.js");
+      await updateGrade(user.id);
+
+      const [updatedUsers] = await pool.query(
+        "SELECT * FROM users WHERE id = ?",
+        [user.id],
+      );
+      user = updatedUsers[0];
+    } catch (syncErr) {
+      console.error("[Google Login Sync Error]", syncErr);
+    }
+
+    // 5. JWT 토큰 발급
+    const jwtToken = jwt.sign(
+      { userId: user.id, nickname: user.nickname, role: user.role || "user" },
+      process.env.SECRET_KEY,
+      { expiresIn: "1h" },
+    );
+
+    const userInfo = {
+      id: user.id,
+      nickname: user.nickname,
+      name: user.name,
+      email: user.email,
+      birth: user.birth,
+      gender: user.gender,
+      nationality: user.nationality,
+      profile_image: user.profile_image,
+      role: user.role || "user",
+      grade: user.grade || "UnRanked",
+      vote_participation_count: user.vote_participation_count || 0,
+      post_creation_count: user.post_creation_count || 0,
+      vote_win_count: user.vote_win_count || 0,
+      created_at: user.created_at,
+      selected_border: user.selected_border,
+      tier: user.tier || "bronze",
+      unlocked_borders: user.unlocked_borders,
+    };
+
+    await pool.query("UPDATE users SET last_login = NOW() WHERE id = ?", [
+      user.id,
+    ]);
+
+    return res.status(200).json({
+      message: "구글 로그인 성공",
+      user: userInfo,
+      token: jwtToken,
+    });
+  } catch (error) {
+    console.error("❌ 구글 로그인 에러:", error);
+    return res
+      .status(500)
+      .json({ message: "구글 로그인 처리 중 서버 오류가 발생했습니다." });
+  }
+});
+
 // 로그아웃 API : POST /users/logout
 router.post("/logout", (req, res) => {
   // JWT 기반 인증이므로 서버측에서 토큰을 무효화하는 로직(예: Redis 블랙리스트)을
