@@ -26,43 +26,65 @@ export function isTruthy(value) {
   return value === true || value === "true" || value === "1" || value === 1;
 }
 
+let isFinalizing = false;
+let lastFinalizedAt = 0;
+const FINALIZE_INTERVAL_MS = 3 * 60 * 1000; // 3분에 1회만 실행
+
 export async function finalizeExpiredPosts() {
-  const [expiredPosts] = await pool.query(
-    "SELECT id, candidate_a_count, candidate_b_count FROM vote_posts WHERE expires_at <= NOW() AND winner_side IS NULL",
-  );
+  const now = Date.now();
+  if (isFinalizing || now - lastFinalizedAt < FINALIZE_INTERVAL_MS) {
+    return;
+  }
 
-  for (const post of expiredPosts) {
-    const {
-      id: postId,
-      candidate_a_count: candidateACount,
-      candidate_b_count: candidateBCount,
-    } = post;
+  isFinalizing = true;
+  try {
+    const [expiredPosts] = await pool.query(
+      "SELECT id, candidate_a_count, candidate_b_count FROM vote_posts WHERE expires_at <= NOW() AND winner_side IS NULL",
+    );
 
-    let winnerSide = "DRAW";
-    if (candidateACount > candidateBCount) winnerSide = "A";
-    else if (candidateBCount > candidateACount) winnerSide = "B";
-
-    if (winnerSide !== "DRAW") {
-      const [voters] = await pool.query(
-        "SELECT user_id FROM vote_records WHERE post_id = ? AND selected_side = ?",
-        [postId, winnerSide],
-      );
-
-      for (const voter of voters) {
-        await pool.query(
-          "UPDATE users SET vote_win_count = COALESCE(vote_win_count, 0) + 1 WHERE id = ?",
-          [voter.user_id],
-        );
-
-        await updateGrade(voter.user_id).catch((error) => {
-          console.error("[Grade Update Error After Expiration]", error);
-        });
-      }
+    if (expiredPosts.length === 0) {
+      lastFinalizedAt = now;
+      return;
     }
 
-    await pool.query("UPDATE vote_posts SET winner_side = ? WHERE id = ?", [
-      winnerSide,
-      postId,
-    ]);
+    for (const post of expiredPosts) {
+      const {
+        id: postId,
+        candidate_a_count: candidateACount,
+        candidate_b_count: candidateBCount,
+      } = post;
+
+      let winnerSide = "DRAW";
+      if (candidateACount > candidateBCount) winnerSide = "A";
+      else if (candidateBCount > candidateACount) winnerSide = "B";
+
+      if (winnerSide !== "DRAW") {
+        const [voters] = await pool.query(
+          "SELECT user_id FROM vote_records WHERE post_id = ? AND selected_side = ?",
+          [postId, winnerSide],
+        );
+
+        for (const voter of voters) {
+          await pool.query(
+            "UPDATE users SET vote_win_count = COALESCE(vote_win_count, 0) + 1 WHERE id = ?",
+            [voter.user_id],
+          );
+
+          await updateGrade(voter.user_id).catch((error) => {
+            console.error("[Grade Update Error After Expiration]", error);
+          });
+        }
+      }
+
+      await pool.query("UPDATE vote_posts SET winner_side = ? WHERE id = ?", [
+        winnerSide,
+        postId,
+      ]);
+    }
+    lastFinalizedAt = Date.now();
+  } catch (error) {
+    console.error("[finalizeExpiredPosts Error]", error);
+  } finally {
+    isFinalizing = false;
   }
 }
